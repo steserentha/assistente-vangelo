@@ -23,13 +23,15 @@ except Exception as e:
 st.markdown("""
 
 <style>
-.stMarkdown p, .stText {
+.stMarkdown, .stText, code, pre {
 white-space: pre-wrap !important;
-word-wrap: break-word !important;
-font-size: 1.1rem !important;
+word-break: break-word !important;
+overflow-wrap: break-word !important;
+}
+p, span, div {
+font-size: 1.05rem !important;
 }
 </style>
-
 """, unsafe_allow_html=True)
 
 # --- 3. FUNZIONI LOGICHE (Validate 3.x - 5.x) ---
