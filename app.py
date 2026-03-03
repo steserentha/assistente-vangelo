@@ -20,6 +20,17 @@ try:
 except Exception as e:
     st.error("Configurazione API Key mancante nei Secrets di Streamlit.")
     st.stop()
+st.markdown("""
+
+<style>
+.stMarkdown p, .stText {
+white-space: pre-wrap !important;
+word-wrap: break-word !important;
+font-size: 1.1rem !important;
+}
+</style>
+
+""", unsafe_allow_html=True)
 
 # --- 3. FUNZIONI LOGICHE (Validate 3.x - 5.x) ---
 def normalizza_liturgia(testo):
