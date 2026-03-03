@@ -130,7 +130,7 @@ AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 9
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
 
 st.title("📖 Assistente Liturgico")
-query = st.text_input("Brano, festa o tema:", placeholder="Es: samaritana, 3a ord rom")
+query = st.text_input("Brano, festa o tema:", value=st.session_state.get("query_input", ""))
 
 col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
