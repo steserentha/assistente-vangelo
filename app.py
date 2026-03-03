@@ -14,7 +14,7 @@ st.set_page_config(page_title="Assistente Liturgico", page_icon="📖", layout="
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
-    NOME_MODELLO = "gemini-2.0-flash"
+    NOME_MODELLO = "gemini-2.5-flash"
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0'})
 except Exception as e:
