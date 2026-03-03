@@ -163,9 +163,9 @@ if btn_cerca or btn_oggi:
                 st.warning("⚠️ Ambiguità: specifica l'anno.")
                 st.write("Seleziona quella corretta:")
                 for f in feste:
-                    nome = f['festa']
-                    if st.button(nome, key=nome):
-                        st.session_state["query_input"] = nome
+                    nome_festa = f['festa']
+                    if st.button(nome_festa, key=nome_festa):
+                        st.session_state["query_input"] = nome_festa
                         st.rerun()
                 st.stop()
                     
