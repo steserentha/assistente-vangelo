@@ -203,13 +203,15 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
             if len({f['vangelo'] for f in feste}) > 1:
                 st.warning("⚠️ Ambiguità: specifica l'anno.")
                 st.write("Seleziona quella corretta:")
+# Funzione interna per aggiornare la memoria prima del ricaricamento
+                def clicca_opzione(nome):
+                    st.session_state["testo_ricerca"] = nome
+                    st.session_state["vai_alla_ricerca"] = True
+
                 for f in feste:
                     nome_f = f['festa']
-                    if st.button(nome_f, key=f"btn_{nome_f}"):
-                        # Scriviamo nella memoria e attiviamo il trigger
-                        st.session_state["testo_ricerca"] = nome_f
-                        st.session_state["vai_alla_ricerca"] = True
-                        st.rerun()
+                    st.button(nome_f, key=f"btn_{nome_f}", on_click=clicca_opzione, args=(nome_f,))
+                st.stop()
                 st.stop()
             elif feste: 
                 brano_id = feste[0]['vangelo']
