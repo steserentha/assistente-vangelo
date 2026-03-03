@@ -6,24 +6,22 @@ from bs4 import BeautifulSoup
 import re
 import urllib.parse
 import os
-import difflib
 
-# --- CONFIGURAZIONE PAGINA ---
+# --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Assistente Liturgico", page_icon="📖", layout="wide")
 
-# --- RECUPERO API KEY DAI SECRETS (Sicurezza Cloud) ---
+# --- 2. RECUPERO API KEY DAI SECRETS ---
 try:
-    # Questa riga cercherà la chiave nel pannello segreto di Streamlit
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
-    NOME_MODELLO = "gemini-2.5-flash"
+    NOME_MODELLO = "gemini-1.5-flash" # Modello stabile per account pay-as-you-go
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0'})
 except Exception as e:
     st.error("Configurazione API Key mancante nei Secrets di Streamlit.")
     st.stop()
 
-# --- LOGICHE CHIRURGICHE VALIDATE (3.x - 5.x) ---
+# --- 3. FUNZIONI LOGICHE (Validate 3.x - 5.x) ---
 def normalizza_liturgia(testo):
     t = testo.lower().strip()
     mappa = {r'\bprima\b|\bi\b|\b1\b|\b1a\b': '1a', r'\bseconda\b|\bii\b|\b2\b|\b2a\b': '2a', r'\bterza\b|\biii\b|\b3\b|\b3a\b': '3a', r'\bquarta\b|\biv\b|\b4\b|\b4a\b': '4a', r'\bquinta\b|\bv\b|\b5\b|\b5a\b': '5a', r'\bsesta\b|\bvi\b|\b6\b|\b6a\b': '6a', r'\bavv\b': 'avvento', r'\bpas\b': 'pasqua', r'\bqua\b': 'quaresima', r'\bord\b|\bto\b': 'to', r'\bpen\b': 'pentecoste', r'\bepi\b': 'epifania', r'\bamb\b': 'amb', r'\brom\b': 'rom'}
@@ -114,7 +112,7 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
             except: break
     return validi
 
-# --- INTERFACCIA ---
+# --- 4. INTERFACCIA UTENTE ---
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
 
@@ -162,35 +160,53 @@ if btn_cerca or btn_oggi:
             st.subheader(f"📍 Vangelo: {brano_id}")
             an_req = analizza_intervallo(brano_id)
             ricorrenze = [i for i in db if sono_sovrapposti(an_req, i['analisi'])]
-            if ricorrenze:
-                with st.expander("📅 Matrioske"):
-                    for r in ricorrenze: st.write(f"• **{r['festa']}**: {r['vangelo']}")
-
-            # Pulizia duplicati (5.4)
+            
+            # Pulizia duplicati (Logica 5.4)
             brani_raw = [brano_id] + [r['vangelo'] for r in ricorrenze]
             brani_c, visti_norm = [], set()
             for b in brani_raw:
-                if b.replace(" ", "").upper() not in visti_norm:
-                    brani_c.append(b); visti_norm.add(b.replace(" ", "").upper())
+                b_norm = b.replace(" ", "").upper()
+                if b_norm not in visti_norm:
+                    brani_c.append(b)
+                    visti_norm.add(b_norm)
+            
             for b in list(brani_c):
                 an = analizza_intervallo(b)
                 if an and (an[2]//1000 > an[1]//1000): brani_c.append(f"{an[0]} {an[2]//1000}, 1-{an[2]%1000}")
 
             t1, t2, t3 = st.tabs(["✍️ Testo", "👤 Autori", "🏛️ Barzillai"])
+            
             with t1:
-                p_bib = f"Trascrivi {brano_id}. 1 versetto/riga. SOLO testo, NO numeri, NO codici."
-                st.markdown(f"```\n{client.models.generate_content(model=NOME_MODELLO, contents=p_bib).text.replace('**','').strip()}\n```")
+                st.markdown("### Testo del Vangelo")
+                p_bib = f"Trascrivi il brano {brano_id}. REGOLE: 1 versetto per riga. Riporta SOLO il testo: NO numeri, NO codici. No grassetti."
+                try:
+                    risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
+                    st.markdown(f"```\n{risposta.text.replace('**','').strip()}\n```")
+                except Exception as e:
+                    # Diagnostica Billing/Safety
+                    st.error(f"Errore Tecnico Google: {str(e)}")
+                    st.info("Se leggi 'Billing not enabled', controlla il metodo di pagamento su Google AI Studio.")
+
             with t2:
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
-                trovato = False
+                trovato_a = False
                 for autore in sorted(list(set(list(AUTORI_QUMRAN.keys()) + list(AUTORI_VOLTO.keys())))):
-                    rq = [b for b in brani_c if verifica_qumran(f"https://www.qumran2.net/parolenuove/commenti.php?criteri=1&autore={AUTORI_QUMRAN.get(autore,0)}&parole={urllib.parse.quote_plus(b.replace('–','-'))}", session)] if autore in AUTORI_QUMRAN else []
-                    rv = mappa_volto.get(autore, [])
-                    if rq or rv:
-                        trovato = True
-                        with st.expander(f"👤 {autore}", expanded=True): [st.write(f"✅ Qumran ({b}): [Link](https://www.qumran2.net/parolenuove/commenti.php?criteri=1&autore={AUTORI_QUMRAN[autore]}&parole={urllib.parse.quote_plus(b.replace('–','-'))})") for b in rq]; [st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})") for r in rv]
-                if not trovato: st.info("Nessun commento.")
+                    res_q = []
+                    if autore in AUTORI_QUMRAN:
+                        for b in brani_c:
+                            u_q = f"https://www.qumran2.net/parolenuove/commenti.php?criteri=1&autore={AUTORI_QUMRAN[autore]}&parole={urllib.parse.quote_plus(b.replace('–','-'))}"
+                            if verifica_qumran(u_q, session): res_q.append({"b": b, "u": u_q})
+                    res_v = mappa_volto.get(autore, [])
+                    if res_q or res_v:
+                        trovato_a = True
+                        with st.expander(f"👤 {autore}", expanded=True):
+                            for r in res_q: st.write(f"✅ Qumran ({r['b']}): [Link]({r['u']})")
+                            for r in res_v: st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})")
+                if not trovato_a: st.info("Nessun commento trovato.")
+
             with t3:
+                st.markdown("### Don Romeo Cavedo (60 pagine)")
                 lb = cerca_barzillai_chirurgico(brani_c, session, 60)
-                if lb: [st.write(f"✅ [{x['t']}]({x['u']})") for x in lb]
+                if lb:
+                    for x in lb: st.write(f"✅ [{x['t']}]({x['u']})")
                 else: st.warning("Nulla in Barzillai.")
