@@ -130,7 +130,7 @@ AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 9
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
 
 st.title("📖 Assistente Liturgico")
-query = st.text_input("Brano, festa o tema:", value=st.session_state.get("query_input", ""))
+query = st.text_input("Brano, festa o tema:", key="barra")
 
 col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
@@ -165,7 +165,7 @@ if btn_cerca or btn_oggi:
                 for f in feste:
                     nome_festa = f['festa']
                     if st.button(nome_festa, key=nome_festa):
-                        st.session_state["query_input"] = nome_festa
+                        st.session_state["barra"] = nome_festa
                         st.rerun()
                 st.stop()
                     
