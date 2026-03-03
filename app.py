@@ -164,7 +164,7 @@ btn_cerca = col1.button("🔍 Cerca", type="primary")
 btn_oggi = col2.button("📅 Oggi")
 
 # La ricerca parte se premiamo Cerca, Oggi, o se un bottone ha impostato la ricerca automatica
-if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
+if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
     if "vai_alla_ricerca" in st.session_state:
         del st.session_state["vai_alla_ricerca"]
 
@@ -195,12 +195,18 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
             # Ricerca precisa (\b) per evitare che 'B' trovi 'AMBROSIANO'
             feste = [i for i in db if all(re.search(rf'\b{re.escape(p)}\b', normalizza_liturgia(i['festa'])) for p in in_norm.split())]
             
+# Se clicchiamo un bottone, cerchiamo il match esatto per evitare il loop
+            match_esatto = [i for i in feste if normalizza_liturgia(i['festa']) == in_norm]
+            if match_esatto:
+                feste = match_esatto
+
             if len({f['vangelo'] for f in feste}) > 1:
                 st.warning("⚠️ Ambiguità: specifica l'anno.")
                 st.write("Seleziona quella corretta:")
                 for f in feste:
                     nome_f = f['festa']
                     if st.button(nome_f, key=f"btn_{nome_f}"):
+                        # Scriviamo nella memoria e attiviamo il trigger
                         st.session_state["testo_ricerca"] = nome_f
                         st.session_state["vai_alla_ricerca"] = True
                         st.rerun()
