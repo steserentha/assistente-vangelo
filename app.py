@@ -36,7 +36,7 @@ p, span, div {
 # --- 3. FUNZIONI LOGICHE (Validate 3.x - 5.x) ---
 def normalizza_liturgia(testo):
     t = testo.lower().strip()
-    mappa = {r'\bprima\b|\bi\b|\b1\b|\b1a\b': '1a', r'\bseconda\b|\bii\b|\b2\b|\b2a\b': '2a', r'\bterza\b|\biii\b|\b3\b|\b3a\b': '3a', r'\bquarta\b|\biv\b|\b4\b|\b4a\b': '4a', r'\bquinta\b|\bv\b|\b5\b|\b5a\b': '5a', r'\bsesta\b|\bvi\b|\b6\b|\b6a\b': '6a', r'\bavv\b': 'avvento', r'\bpas\b': 'pasqua', r'\bqua\b': 'quaresima', r'\bord\b|\bto\b': 'to', r'\bpen\b': 'pentecoste', r'\bepi\b': 'epifania', r'\bamb\b': 'amb', r'\brom\b': 'rom'}
+mappa = {r'\bquar\b': 'QUA', r'\bprima\b|\bi\b|\b1\b|\b1a\b': '1a', r'\bseconda\b|\bii\b|\b2\b|\b2a\b': '2a', r'\bterza\b|\biii\b|\b3\b|\b3a\b': '3a', r'\bquarta\b|\biv\b|\b4\b|\b4a\b': '4a', r'\bquinta\b|\bv\b|\b5\b|\b5a\b': '5a', r'\bsesta\b|\bvi\b|\b6\b|\b6a\b': '6a', r'\bavv\b': 'avvento', r'\bpas\b': 'pasqua', r'\bqua\b': 'quaresima', r'\bord\b|\bto\b': 'to', r'\bpen\b': 'pentecoste', r'\bepi\b': 'epifania', r'\bamb\b': 'amb', r'\brom\b': 'rom'}
     for pattern, sostituto in mappa.items(): t = re.sub(pattern, sostituto, t)
     return t.upper()
 
