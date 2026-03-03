@@ -14,12 +14,15 @@ st.set_page_config(page_title="Assistente Liturgico", page_icon="📖", layout="
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
+    # Manteniamo il modello che preferisci
     NOME_MODELLO = "gemini-2.5-flash"
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0'})
 except Exception as e:
     st.error("Configurazione API Key mancante nei Secrets di Streamlit.")
     st.stop()
+
+# --- CSS PER ANDARE A CAPO SU SMARTPHONE ---
 st.markdown("""
 <style>
 .stMarkdown, .stText, code, pre {
@@ -33,11 +36,28 @@ p, span, div {
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNZIONI LOGICHE (Validate 3.x - 5.x) ---
+# --- 3. FUNZIONI LOGICHE ---
 def normalizza_liturgia(testo):
     t = testo.lower().strip()
-    mappa = {r'\bquar\b': 'QUA', r'\bprima\b|\bi\b|\b1\b|\b1a\b': '1a', r'\bseconda\b|\bii\b|\b2\b|\b2a\b': '2a', r'\bterza\b|\biii\b|\b3\b|\b3a\b': '3a', r'\bquarta\b|\biv\b|\b4\b|\b4a\b': '4a', r'\bquinta\b|\bv\b|\b5\b|\b5a\b': '5a', r'\bsesta\b|\bvi\b|\b6\b|\b6a\b': '6a', r'\bavv\b': 'avvento', r'\bpas\b': 'pasqua', r'\bqua\b': 'quaresima', r'\bord\b|\bto\b': 'to', r'\bpen\b': 'pentecoste', r'\bepi\b': 'epifania', r'\bamb\b': 'amb', r'\brom\b': 'rom'}
-    for pattern, sostituto in mappa.items(): t = re.sub(pattern, sostituto, t)
+    mappa = {
+        r'\bquar\b': 'QUA',
+        r'\bprima\b|\bi\b|\b1\b|\b1a\b': '1a', 
+        r'\bseconda\b|\bii\b|\b2\b|\b2a\b': '2a', 
+        r'\bterza\b|\biii\b|\b3\b|\b3a\b': '3a', 
+        r'\bquarta\b|\biv\b|\b4\b|\b4a\b': '4a', 
+        r'\bquinta\b|\bv\b|\b5\b|\b5a\b': '5a', 
+        r'\bsesta\b|\bvi\b|\b6\b|\b6a\b': '6a', 
+        r'\bavv\b': 'avvento', 
+        r'\bpas\b': 'pasqua', 
+        r'\bqua\b': 'quaresima', 
+        r'\bord\b|\bto\b': 'to', 
+        r'\bpen\b': 'pentecoste', 
+        r'\bepi\b': 'epifania', 
+        r'\bamb\b': 'amb', 
+        r'\brom\b': 'rom'
+    }
+    for pattern, sostituto in mappa.items(): 
+        t = re.sub(pattern, sostituto, t)
     return t.upper()
 
 def analizza_intervallo(riferimento):
@@ -129,13 +149,27 @@ AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 9
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
 
 st.title("📖 Assistente Liturgico")
-query = st.text_input("Brano, festa o tema:", placeholder="Es: samaritana, 3a ord rom")
+
+# Inizializziamo la memoria per gestire la barra di ricerca
+if "testo_ricerca" not in st.session_state:
+    st.session_state["testo_ricerca"] = ""
+
+# La barra di ricerca legge il valore dalla memoria (session_state)
+query = st.text_input("Brano, festa o tema:", value=st.session_state["testo_ricerca"], key="main_search_bar")
+
+# Se scrivi a mano, aggiorniamo la memoria
+if query != st.session_state["testo_ricerca"]:
+    st.session_state["testo_ricerca"] = query
 
 col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
 btn_oggi = col2.button("📅 Oggi")
 
-if btn_cerca or btn_oggi:
+# La ricerca parte se premiamo Cerca, Oggi, o se un bottone ha impostato la ricerca automatica
+if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
+    if "vai_alla_ricerca" in st.session_state:
+        del st.session_state["vai_alla_ricerca"]
+
     with st.spinner("Analisi in corso..."):
         nome_file = 'Liturgia_semplificata.docx'
         url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&dl=1"
@@ -147,24 +181,36 @@ if btn_cerca or btn_oggi:
         db = [{"festa": p.text.split("|")[0].replace("[", "").replace("]", "").strip(), "vangelo": p.text.split("|")[1].strip(), "analisi": analizza_intervallo(p.text.split("|")[1].strip())} for p in doc.paragraphs if "|" in p.text]
 
         brano_id = ""
+        # Usiamo il testo salvato in memoria
+        testo_pulito = st.session_state["testo_ricerca"]
+
         if btn_oggi:
             try:
                 res = session.get("https://www.apostolesacrocuore.org/vangelo-oggi-ambrosiano.php", timeout=10)
                 tag = BeautifulSoup(res.text, 'html.parser').find(['h3', 'b', 'strong'], text=re.compile(r'(Mt|Mc|Lc|Gv)\s+\d+'))
                 if tag: brano_id = re.search(r'(Mt|Mc|Lc|Gv)\s+\d+.*', tag.text, re.IGNORECASE).group(0)
             except: pass
-        elif any(query.upper().startswith(p) for p in ["MT", "MC", "LC", "GV"]):
-            brano_id = query
-        else:
-            in_norm = normalizza_liturgia(query)
-            feste = [i for i in db if all(p in normalizza_liturgia(i['festa']) for p in in_norm.split())]
+        elif testo_pulito and any(testo_pulito.upper().startswith(p) for p in ["MT", "MC", "LC", "GV"]):
+            brano_id = testo_pulito
+        elif testo_pulito:
+            in_norm = normalizza_liturgia(testo_pulito)
+            # Ricerca precisa (\b) per evitare che 'B' trovi 'AMBROSIANO'
+            feste = [i for i in db if all(re.search(rf'\b{re.escape(p)}\b', normalizza_liturgia(i['festa'])) for p in in_norm.split())]
+            
             if len({f['vangelo'] for f in feste}) > 1:
                 st.warning("⚠️ Ambiguità: specifica l'anno.")
-                for f in feste: st.write(f"- {f['festa']} ({f['vangelo']})")
+                st.write("Seleziona quella corretta:")
+                for f in feste:
+                    nome_f = f['festa']
+                    if st.button(nome_f, key=f"btn_{nome_f}"):
+                        st.session_state["testo_ricerca"] = nome_f
+                        st.session_state["vai_alla_ricerca"] = True
+                        st.rerun()
                 st.stop()
-            elif feste: brano_id = feste[0]['vangelo']
+            elif feste: 
+                brano_id = feste[0]['vangelo']
             else:
-                resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Tema '{query}' -> brano (es. Gv 4,5-42) o 'NULLA'.").text.strip()
+                resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Tema '{testo_pulito}' -> brano (es. Gv 4,5-42) o 'NULLA'.").text.strip()
                 if any(p in resp.upper() for p in ["MT", "MC", "LC", "GV"]): brano_id = resp
                 else: st.error("Nessun risultato."); st.stop()
 
@@ -173,7 +219,6 @@ if btn_cerca or btn_oggi:
             an_req = analizza_intervallo(brano_id)
             ricorrenze = [i for i in db if sono_sovrapposti(an_req, i['analisi'])]
             
-            # Pulizia duplicati (Logica 5.4)
             brani_raw = [brano_id] + [r['vangelo'] for r in ricorrenze]
             brani_c, visti_norm = [], set()
             for b in brani_raw:
@@ -195,9 +240,7 @@ if btn_cerca or btn_oggi:
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
                     st.markdown(f"```\n{risposta.text.replace('**','').strip()}\n```")
                 except Exception as e:
-                    # Diagnostica Billing/Safety
                     st.error(f"Errore Tecnico Google: {str(e)}")
-                    st.info("Se leggi 'Billing not enabled', controlla il metodo di pagamento su Google AI Studio.")
 
             with t2:
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
