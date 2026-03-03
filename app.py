@@ -155,11 +155,9 @@ if "testo_ricerca" not in st.session_state:
     st.session_state["testo_ricerca"] = ""
 
 # La barra di ricerca legge il valore dalla memoria (session_state)
-query = st.text_input("Brano, festa o tema:", value=st.session_state["testo_ricerca"], key="main_search_bar")
+query = st.text_input("Brano, festa o tema:", key="testo_ricerca")
 
-# Se scrivi a mano, aggiorniamo la memoria
-if query != st.session_state["testo_ricerca"]:
-    st.session_state["testo_ricerca"] = query
+
 
 col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
