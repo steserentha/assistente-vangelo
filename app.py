@@ -25,13 +25,20 @@ except Exception as e:
 # --- CSS PER ANDARE A CAPO SU SMARTPHONE ---
 st.markdown("""
 <style>
-.stMarkdown, .stText, code, pre {
+/* Uniforma dimensione, a capo e font per ogni elemento di testo */
+.stMarkdown, .stText, code, pre, p, span, div {
     white-space: pre-wrap !important;
     word-break: break-word !important;
     overflow-wrap: break-word !important;
+    font-size: 1.1rem !important;
+    font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
+    font-weight: normal !important;
 }
-p, span, div {
-    font-size: 1.05rem !important;
+
+/* Rimuove i margini extra dei blocchi di codice che possono sfalsare la visualizzazione */
+code, pre {
+    padding: 0 !important;
+    background-color: transparent !important;
 }
 </style>
 """, unsafe_allow_html=True)
