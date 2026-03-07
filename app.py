@@ -260,18 +260,21 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
             
             with t1:
                 st.markdown("### Testo del Vangelo")
-                # Prompt più preciso per evitare rifiuti dall'IA
-                p_bib = f"Per favore, trascrivi il testo sacro del brano {brano_id}. REGOLE: vai a capo dopo ogni versetto. Restituisci SOLO il testo puro, senza numeri di versetto, senza titoli e senza grassetti."
+                # Prompt più forte per non far sbagliare brano all'IA
+                p_bib = f"Trascrivi il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. Nessun commento."
+                
                 try:
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
-                    # Controlliamo che Gemini abbia effettivamente risposto con del testo
+                    
+                    # --- IL PARACADUTE ---
+                    # Verifichiamo se la risposta esiste PRIMA di provare a modificarla
                     if risposta and hasattr(risposta, 'text') and risposta.text:
                         testo_finale = risposta.text.replace('**','').strip()
                         st.markdown(f"```\n{testo_finale}\n```")
                     else:
-                        st.warning("⚠️ L'IA non ha generato il testo. Prova a cliccare di nuovo su Cerca.")
+                        st.warning("⚠️ Gemini non ha risposto in tempo. Prova a cliccare di nuovo su Cerca.")
                 except Exception as e:
-                    st.error(f"Errore Tecnico Google: {str(e)}")
+                    st.error(f"Errore tecnico: {str(e)}")
 
             with t2:
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
