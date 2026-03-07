@@ -299,21 +299,22 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                             for r in res_q: st.write(f"✅ Qumran ({r['b']}): [Link]({r['u']})")
                             for r in res_v: st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})")
                 if not trovato_a: st.info("Nessun commento trovato.")
-  # --- SEZIONE NELLA PAROLA (Semeraro & Pasolini) ---
+# --- SEZIONE NELLA PAROLA (Semeraro & Pasolini) ---
                 st.write("---")
                 st.write("📖 **Nella Parola (Semeraro & Pasolini)**")
-                st.caption("Link basati sulle corrispondenze liturgiche (Matrioske):")
+                st.caption("Ricerca automatica (Originale + Matrioske):")
                 
-                # Creiamo un link per ogni brano trovato nelle matrioske
                 for b in brani_c:
-                    # Pulizia: rimuoviamo lettere come 'a' o 'b' dalle citazioni (es: Mc 6, 1b-5 -> Mc 6, 1-5)
-                    # per rendere la ricerca più efficace su nellaparola.it
-                    b_per_link = re.sub(r'(?<=\d)[a-zA-Z]', '', b).strip()
-                    url_np = f"https://nellaparola.it/commenti#s={quote(b_per_link)}"
+                    # 1. Togliamo lettere extra (a, b...)
+                    b_pulito = re.sub(r'(?<=\d)[a-z]', '', b, flags=re.IGNORECASE)
+                    # 2. Compattiamo (es: Mc 6, 1-5 -> Mc 6,1-5) per essere più precisi
+                    b_senza_spazi = b_pulito.replace(" ", "")
+                    b_finale = re.sub(r'^([A-Z][a-z]?)(\d)', r'\1 \2', b_senza_spazi)
                     
-                    st.markdown(f"👉 **[Commenti su {b_per_link}]({url_np})**")
+                    url_np = f"https://nellaparola.it/commenti#s={quote(b_finale)}"
+                    st.markdown(f"👉 **[Commenti su {b_finale}]({url_np})**")
                 
-                st.info("Nota: se un link non mostra risultati, prova quello della corrispondenza più ampia.")
+                st.warning("⚠️ Se il primo link mostra vangeli errati, usa quello della Matrioska (es. Mc 6,1-6).")
 
             with t3:
                 st.markdown("### Don Romeo Cavedo (60 pagine)")
