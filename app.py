@@ -170,6 +170,16 @@ col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
 btn_oggi = col2.button("📅 Oggi")
 
+# Tasto manuale per aggiornare il file da Dropbox solo quando vuoi tu
+with st.sidebar:
+    st.divider()
+    if st.button("🔄 Aggiorna Database"):
+        with st.spinner("Scaricando nuova versione..."):
+            r = requests.get(url_db, allow_redirects=True)
+            with open(nome_file, 'wb') as f: f.write(r.content)
+            st.success("Database aggiornato con successo!")
+            st.rerun()
+
 # La ricerca parte se premiamo Cerca, Oggi, o se un bottone ha impostato la ricerca automatica
 if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
     if "vai_alla_ricerca" in st.session_state:
