@@ -248,7 +248,7 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
             if ricorrenze:
                 # Creiamo una lista pulita dei nomi delle feste (esclusi i duplicati)
                 nomi_feste = list(set([r['festa'] for r in ricorrenze]))
-                st.info(f"🔗 **Corrispondenze (Matrioske):** {', '.join(nomi_feste)}")            
+                st.info(f"🔗 **Corrispondenze:** {', '.join(nomi_feste)}")            
             
             brani_raw = [brano_id] + [r['vangelo'] for r in ricorrenze]
             brani_c, visti_norm = [], set()
