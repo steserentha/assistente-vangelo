@@ -155,6 +155,10 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
 
+# DEFINIZIONE DATI DATABASE (Spostati qui per essere visibili ovunque)
+nome_file = 'Liturgia_semplificata.docx'
+url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&dl=1"
+
 st.title("📖 Assistente Liturgico")
 
 # Inizializziamo la memoria per gestire la barra di ricerca
@@ -164,13 +168,11 @@ if "testo_ricerca" not in st.session_state:
 # La barra di ricerca legge il valore dalla memoria (session_state)
 query = st.text_input("Brano, festa o tema:", key="testo_ricerca")
 
-
-
 col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
 btn_oggi = col2.button("📅 Oggi")
 
-# Tasto manuale per aggiornare il file da Dropbox solo quando vuoi tu
+# Tasto manuale per aggiornare il file da Dropbox nella barra laterale
 with st.sidebar:
     st.divider()
     if st.button("🔄 Aggiorna Database"):
@@ -186,13 +188,12 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
         del st.session_state["vai_alla_ricerca"]
 
     with st.spinner("Analisi in corso..."):
-        nome_file = 'Liturgia_semplificata.docx'
-        url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&dl=1"
+        # Controlla se il file esiste, altrimenti lo scarica
         if not os.path.exists(nome_file):
             r = requests.get(url_db, allow_redirects=True)
             with open(nome_file, 'wb') as f: f.write(r.content)
-
-        doc = Document(nome_file)
+                
+doc = Document(nome_file)
         db = [{"festa": p.text.split("|")[0].replace("[", "").replace("]", "").strip(), "vangelo": p.text.split("|")[1].strip(), "analisi": analizza_intervallo(p.text.split("|")[1].strip())} for p in doc.paragraphs if "|" in p.text]
 
         brano_id = ""
