@@ -243,6 +243,12 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
             st.subheader(f"📍 Vangelo: {brano_id}")
             an_req = analizza_intervallo(brano_id)
             ricorrenze = [i for i in db if sono_sovrapposti(an_req, i['analisi'])]
+
+# --- VISUALIZZAZIONE MATRIOSKE ---
+            if ricorrenze:
+                # Creiamo una lista pulita dei nomi delle feste (esclusi i duplicati)
+                nomi_feste = list(set([r['festa'] for r in ricorrenze]))
+                st.info(f"🔗 **Corrispondenze (Matrioske):** {', '.join(nomi_feste)}")            
             
             brani_raw = [brano_id] + [r['vangelo'] for r in ricorrenze]
             brani_c, visti_norm = [], set()
