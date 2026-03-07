@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import urllib.parse
+from urllib.parse import quote
 import os
 
 # --- 1. CONFIGURAZIONE PAGINA ---
@@ -298,6 +299,17 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                             for r in res_q: st.write(f"✅ Qumran ({r['b']}): [Link]({r['u']})")
                             for r in res_v: st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})")
                 if not trovato_a: st.info("Nessun commento trovato.")
+    # --- SEZIONE NELLA PAROLA (Semeraro & Pasolini) ---
+                st.write("---")
+                st.write("📖 **Nella Parola (Semeraro & Pasolini)**")
+                
+                # Creiamo il link che filtra già per il brano attuale
+                brano_url = quote(brano_id)
+                url_np = f"https://nellaparola.it/commenti#s={brano_url}"
+                
+                st.markdown(f"Su *nellaparola.it* trovi i commenti di **M.D. Semeraro** e **R. Pasolini**.")
+                st.markdown(f"👉 **[Clicca qui per i commenti su {brano_id}]({url_np})**")
+                st.caption("Nota: sul sito potresti dover scorrere e cliccare 'Mostra altri' in fondo.")
 
             with t3:
                 st.markdown("### Don Romeo Cavedo (60 pagine)")
