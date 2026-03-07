@@ -155,7 +155,7 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
 
-# Definiamo i dati del database all'inizio, così sono pronti per tutti i bottoni
+# Definiamo subito i dati del database, così sono visibili anche alla sidebar
 nome_file = 'Liturgia_semplificata.docx'
 url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&dl=1"
 
@@ -179,7 +179,7 @@ with st.sidebar:
         with st.spinner("Scaricando nuova versione..."):
             r = requests.get(url_db, allow_redirects=True)
             with open(nome_file, 'wb') as f: f.write(r.content)
-            st.success("Database aggiornato con successo!")
+            st.success("Database aggiornato!")
             st.rerun()
 
 # La ricerca parte se premiamo Cerca, Oggi, o se un bottone ha impostato la ricerca automatica
@@ -192,8 +192,9 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
         if not os.path.exists(nome_file):
             r = requests.get(url_db, allow_redirects=True)
             with open(nome_file, 'wb') as f: f.write(r.content)
-                
-doc = Document(nome_file)
+
+        # Carichiamo il database (Attenzione all'indentazione corretta!)
+        doc = Document(nome_file)
         db = [{"festa": p.text.split("|")[0].replace("[", "").replace("]", "").strip(), "vangelo": p.text.split("|")[1].strip(), "analisi": analizza_intervallo(p.text.split("|")[1].strip())} for p in doc.paragraphs if "|" in p.text]
 
         brano_id = ""
