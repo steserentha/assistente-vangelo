@@ -203,13 +203,16 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
         testo_pulito = st.session_state["testo_ricerca"]
 
         if btn_oggi:
+            st.session_state["is_oggi"] = True  # Attiviamo il video
             try:
                 res = session.get("https://www.apostolesacrocuore.org/vangelo-oggi-ambrosiano.php", timeout=10)
                 tag = BeautifulSoup(res.text, 'html.parser').find(['h3', 'b', 'strong'], text=re.compile(r'(Mt|Mc|Lc|Gv)\s+\d+'))
                 if tag: brano_id = re.search(r'(Mt|Mc|Lc|Gv)\s+\d+.*', tag.text, re.IGNORECASE).group(0)
             except: pass
-        elif testo_pulito and any(testo_pulito.upper().startswith(p) for p in ["MT", "MC", "LC", "GV"]):
-            brano_id = testo_pulito
+        elif testo_pulito:
+            st.session_state["is_oggi"] = False # Disattiviamo il video per ricerche manuali
+            if any(testo_pulito.upper().startswith(p) for p in ["MT", "MC", "LC", "GV"]):
+                brano_id = testo_pulito
         elif testo_pulito:
             in_norm = normalizza_liturgia(testo_pulito)
             # Ricerca precisa (\b) per evitare che 'B' trovi 'AMBROSIANO'
@@ -284,6 +287,12 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                     st.error(f"Errore tecnico: {str(e)}")
 
             with t2:
+  # --- VIDEO CHIESA DI MILANO (Solo se premuto "Oggi") ---
+                if st.session_state.get("is_oggi"):
+                    st.write("📺 **Commento Video (Chiesa di Milano)**")
+                    url_yt = "https://www.youtube.com/watch?v=0zc_7FGGNmM&list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
+                    st.video(url_yt)
+                    st.write("---")
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
                 trovato_a = False
                 for autore in sorted(list(set(list(AUTORI_QUMRAN.keys()) + list(AUTORI_VOLTO.keys())))):
