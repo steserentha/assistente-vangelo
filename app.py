@@ -287,11 +287,10 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                     st.error(f"Errore tecnico: {str(e)}")
 
             with t2:
-  # --- VIDEO CHIESA DI MILANO (Solo se premuto "Oggi") ---
+# --- LINK VIDEO CHIESA DI MILANO (Solo se premuto "Oggi") ---
                 if st.session_state.get("is_oggi"):
-                    st.write("📺 **Commento Video (Chiesa di Milano)**")
                     url_yt = "https://www.youtube.com/watch?v=0zc_7FGGNmM&list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
-                    st.video(url_yt)
+                    st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_yt})**")
                     st.write("---")
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
                 trovato_a = False
