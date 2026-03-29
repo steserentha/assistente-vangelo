@@ -287,7 +287,7 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                     st.error(f"Errore tecnico: {str(e)}")
 
             with t2:
-LINK VIDEO CHIESA DI MILANO (Dinamico per "Oggi") ---
+#LINK VIDEO CHIESA DI MILANO (Dinamico per "Oggi") ---
                 if st.session_state.get("is_oggi"):
                     # Usiamo il link della playlist senza l'ID del video specifico
                     url_playlist = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
