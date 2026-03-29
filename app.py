@@ -327,8 +327,8 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                 st.warning("⚠️ Se il primo link mostra vangeli errati, usa quello della Matrioska (es. Mc 6,1-6).")
 
             with t3:
-                st.markdown("### Don Romeo Cavedo (60 pagine)")
-                lb = cerca_barzillai_chirurgico(brani_c, session, 60)
+                st.markdown("### Don Romeo Cavedo (104 pagine)")
+                lb = cerca_barzillai_chirurgico(brani_c, session, 104)
                 if lb:
                     for x in lb: st.write(f"✅ [{x['t']}]({x['u']})")
                 else: st.warning("Nulla in Barzillai.")
