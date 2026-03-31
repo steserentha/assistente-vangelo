@@ -212,24 +212,46 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
         db = [{"festa": p.text.split("|")[0].replace("[", "").replace("]", "").strip(), "vangelo": p.text.split("|")[1].strip(), "analisi": analizza_intervallo(p.text.split("|")[1].strip())} for p in doc.paragraphs if "|" in p.text]
 
         brano_id = ""
-        # Usiamo il testo salvato in memoria
         testo_pulito = st.session_state["testo_ricerca"]
 
         if btn_oggi:
-            st.session_state["is_oggi"] = True  # Attiviamo il video
+            st.session_state["is_oggi"] = True
             try:
                 res = session.get("https://www.apostolesacrocuore.org/vangelo-oggi-ambrosiano.php", timeout=10)
                 tag = BeautifulSoup(res.text, 'html.parser').find(['h3', 'b', 'strong'], text=re.compile(r'(Mt|Mc|Lc|Gv)\s+\d+'))
                 if tag: brano_id = re.search(r'(Mt|Mc|Lc|Gv)\s+\d+.*', tag.text, re.IGNORECASE).group(0)
             except: pass
         elif testo_pulito:
-            st.session_state["is_oggi"] = False # Disattiviamo il video per ricerche manuali
+            st.session_state["is_oggi"] = False
+            # 1. Controllo se è un brano scritto direttamente (es. Mc 1,1)
             if any(testo_pulito.upper().startswith(p) for p in ["MT", "MC", "LC", "GV"]):
                 brano_id = testo_pulito
-        elif testo_pulito:
-            in_norm = normalizza_liturgia(testo_pulito)
-            # Ricerca precisa (\b) per evitare che 'B' trovi 'AMBROSIANO'
-            feste = [i for i in db if all(re.search(rf'\b{re.escape(p)}\b', normalizza_liturgia(i['festa'])) for p in in_norm.split())]
+            # 2. ALTRIMENTI cerco la festa nel Database Word
+            else:
+                in_norm = normalizza_liturgia(testo_pulito)
+                feste = [i for i in db if all(re.search(rf'\b{re.escape(p)}\b', normalizza_liturgia(i['festa'])) for p in in_norm.split())]
+                
+                # Match esatto per evitare ambiguità inutili
+                match_esatto = [i for i in feste if normalizza_liturgia(i['festa']) == in_norm]
+                if match_esatto: feste = match_esatto
+
+                if len({f['vangelo'] for f in feste}) > 1:
+                    st.warning("⚠️ Ambiguità: specifica l'anno.")
+                    st.write("Seleziona quella corretta:")
+                    def clicca_opzione(nome):
+                        st.session_state["testo_ricerca"] = nome
+                        st.session_state["vai_alla_ricerca"] = True
+                    for f in feste:
+                        nome_f = f['festa']
+                        st.button(nome_f, key=f"btn_{nome_f}", on_click=clicca_opzione, args=(nome_f,))
+                    st.stop()
+                elif feste: 
+                    brano_id = feste[0]['vangelo']
+                else:
+                    # Se non è nel Word, prova come "Tema" generico
+                    resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Tema '{testo_pulito}' -> brano (es. Gv 4,5-42) o 'NULLA'.").text.strip()
+                    if any(p in resp.upper() for p in ["MT", "MC", "LC", "GV"]): brano_id = resp
+                    else: st.error("Nessun risultato."); st.stop()
             
 # Se clicchiamo un bottone, cerchiamo il match esatto per evitare il loop
             match_esatto = [i for i in feste if normalizza_liturgia(i['festa']) == in_norm]
