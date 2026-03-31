@@ -23,11 +23,11 @@ except Exception as e:
     st.error("Configurazione API Key mancante nei Secrets di Streamlit.")
     st.stop()
 
-# --- CSS PER ANDARE A CAPO SU SMARTPHONE ---
+# --- CSS PER ANDARE A CAPO SU SMARTPHONE (Versione Pulita) ---
 st.markdown("""
 <style>
-/* Uniforma dimensione, a capo e font per ogni elemento di testo */
-.stMarkdown, .stText, code, pre, p, span, div {
+/* Applica lo stile solo al contenuto dei messaggi e del markdown, non ai tasti di sistema */
+.stMarkdown p, .stMarkdown li, .stMarkdown span, code, pre {
     white-space: pre-wrap !important;
     word-break: break-word !important;
     overflow-wrap: break-word !important;
@@ -36,10 +36,15 @@ st.markdown("""
     font-weight: normal !important;
 }
 
-/* Rimuove i margini extra dei blocchi di codice che possono sfalsare la visualizzazione */
+/* Rimuove i margini extra dei blocchi di codice */
 code, pre {
     padding: 0 !important;
     background-color: transparent !important;
+}
+
+/* Nasconde eventuali testi tecnici residui nelle icone della sidebar */
+[data-testid="stSidebarNav"] span {
+    white-space: nowrap !important;
 }
 </style>
 """, unsafe_allow_html=True)
