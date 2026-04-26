@@ -154,42 +154,52 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
 
 def cerca_villapizzone(brani_list, session):
     validi = []
-    url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
+    # Mappatura delle pagine per ogni Vangelo
+    mappa_pagine = {"Mt": "van.html", "Mc": "van_mc.html", "Lc": "van_lc.html", "Gv": "van_gv.html"}
+    
+    # Capiamo quale Vangelo stiamo cercando dal primo brano della lista
+    primo_brano = brani_list[0] if brani_list else ""
+    libro = "Mt" # default
+    if "Mc" in primo_brano: libro = "Mc"
+    elif "Lc" in primo_brano: libro = "Lc"
+    elif "Gv" in primo_brano: libro = "Gv"
+    
+    url_base = "https://www.gesuiti-villapizzone.it/sito/"
+    url_vangelo = f"{url_base}{mappa_pagine[libro]}"
+    
     try:
-        res = session.get(url_van, timeout=10)
+        res = session.get(url_vangelo, timeout=10)
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Scansioniamo tutti gli elementi della lista (li)
-        items = soup.find_all('li')
-        for item in items:
-            testo_item = item.get_text()
-            # Se l'elemento contiene un riferimento biblico
-            if any(lib in testo_item for lib in ["Mt", "Mc", "Lc", "Gv"]):
-                ref_trovato = analizza_intervallo(testo_item)
+        # Cerchiamo tutti i link (a) perché a Villapizzone i titoli sono spesso linkati
+        for a_tag in soup.find_all('a'):
+            testo_link = a_tag.get_text().strip()
+            if libro in testo_link:
+                # Usiamo analizza_intervallo per capire se il brano nel link è quello giusto
+                ref_trovato = analizza_intervallo(testo_link)
                 if ref_trovato:
-                    # Confrontiamo con i brani cercati (matrioske incluse)
                     for b_req in brani_list:
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
-                            links = item.find_all('a', href=True)
-                            res_item = {"t": testo_item.strip().replace("• ", ""), "audio": None, "pdf": None}
-                            for a in links:
-                                href = a['href']
-                                # Rendiamo il link assoluto
-                                href = urllib.parse.urljoin(url_van, href)
-                                
-                                if href.endswith('.mp3'):
-                                    res_item["audio"] = href
-                                elif href.endswith('.pdf'):
-                                    res_item["pdf"] = href
+                            # Trovato! Ora cerchiamo audio e pdf nello stesso "blocco" (li o p)
+                            parent = a_tag.find_parent(['li', 'p', 'td'])
+                            res_item = {"t": testo_link, "audio": None, "pdf": None}
+                            
+                            # Cerca tutti i link dentro il genitore per trovare .mp3 e .pdf
+                            for link in parent.find_all('a', href=True):
+                                h = urllib.parse.urljoin(url_vangelo, link['href'])
+                                if h.endswith('.mp3'): res_item["audio"] = h
+                                elif h.endswith('.pdf'): res_item["pdf"] = h
+                                # Se il link stesso è il titolo e punta a un mp3
+                                elif link.get_text().strip() == testo_link and h.endswith('.mp3'):
+                                    res_item["audio"] = h
                             
                             if res_item["audio"] or res_item["pdf"]:
                                 validi.append(res_item)
                             break
     except: pass
     return validi
-
 # --- 4. INTERFACCIA UTENTE ---
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
