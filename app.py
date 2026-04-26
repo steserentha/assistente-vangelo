@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import urllib.parse
-from urllib.parse import quote  # <--- AGGIUNGI QUESTA RIGA
+from urllib.parse import quote
 import os
 
 # --- 1. CONFIGURAZIONE PAGINA ---
@@ -15,8 +15,8 @@ st.set_page_config(page_title="Assistente Liturgico", page_icon="📖", layout="
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
-    # Manteniamo il modello che preferisci
-    NOME_MODELLO = "gemini-1.5-flash"
+    # CONFIGURAZIONE MODELLO 2026
+    NOME_MODELLO = "gemini-2.5-flash" 
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0'})
 except Exception as e:
@@ -154,9 +154,10 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
 
 def cerca_villapizzone(brani_list, session):
     validi = []
-    # 1. Capiamo quale pagina caricare in base al Vangelo cercato
+    # Mappatura delle pagine per ogni Vangelo sul sito di Villapizzone
     mappa_pagine = {"Mt": "van.html", "Mc": "van_mc.html", "Lc": "van_lc.html", "Gv": "van_gv.html"}
     
+    # Identifichiamo il libro (Gv, Mt...) dal primo brano cercato
     primo_brano = brani_list[0] if brani_list else ""
     libro = "Mt"
     for k in mappa_pagine.keys():
@@ -172,36 +173,36 @@ def cerca_villapizzone(brani_list, session):
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 2. Cerchiamo i link che contengono citazioni bibliche (es. "Gv 10, 7-21")
+        # Cerchiamo tutti i link (a) che contengono il nome del libro (es. "Gv")
         for a_tag in soup.find_all('a'):
             testo_link = a_tag.get_text().strip()
-            
-            # Verifichiamo se il link parla del Vangelo giusto
             if libro in testo_link:
                 ref_trovato = analizza_intervallo(testo_link)
                 if ref_trovato:
-                    # Confrontiamo con le nostre matrioske
+                    # Verifichiamo se il brano trovato coincide con uno dei nostri (matrioske incluse)
                     for b_req in brani_list:
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
-                            # TROVATO! Ora cerchiamo i file nel blocco genitore
-                            parent = a_tag.find_parent(['li', 'p', 'td'])
+                            # Trovato! Ora cerchiamo i file audio e pdf nel suo "blocco"
+                            # Solitamente i link sono nello stesso <li> o nel <td> vicino
+                            parent = a_tag.find_parent(['li', 'p', 'tr'])
                             res_item = {"t": testo_link, "audio": None, "pdf": None}
                             
-                            # Estraiamo tutti i link dal "vicinato" del brano
-                            for link in parent.find_all('a', href=True):
-                                h = urllib.parse.urljoin(url_vangelo, link['href'])
-                                if h.endswith('.mp3'):
-                                    res_item["audio"] = h
-                                elif h.endswith('.pdf') or 'trascrizioni' in h:
-                                    res_item["pdf"] = h
+                            if parent:
+                                for link in parent.find_all('a', href=True):
+                                    h = urllib.parse.urljoin(url_vangelo, link['href'])
+                                    if h.endswith('.mp3'): res_item["audio"] = h
+                                    elif h.endswith('.pdf') or 'trascrizioni' in h: res_item["pdf"] = h
+                                    # Caso particolare: il link principale stesso è l'audio
+                                    elif link.get_text().strip() == testo_link and h.endswith('.mp3'):
+                                        res_item["audio"] = h
                             
                             if res_item["audio"] or res_item["pdf"]:
                                 validi.append(res_item)
                             break
     except: pass
     
-    # Pulizia duplicati
+    # Rimuoviamo duplicati
     visti, finale = set(), []
     for x in validi:
         if x['t'] not in visti:
