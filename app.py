@@ -155,51 +155,56 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
 def cerca_villapizzone(brani_list, session):
     validi = []
     url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
+    st.info(f"DEBUG: Mi sto collegando a {url_van}...")
+    
     try:
         res = session.get(url_van, timeout=10)
-        # Usiamo una decodifica sicura per i caratteri speciali del sito
-        content = res.content.decode('utf-8', errors='ignore')
-        soup = BeautifulSoup(content, 'html.parser')
+        # Proviamo a forzare l'encoding italiano
+        res.encoding = 'iso-8859-1' 
+        soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Recuperiamo tutti i link (<a>) della pagina
+        # Prendiamo tutti i link
         links = soup.find_all('a')
+        st.write(f"DEBUG: Ho trovato {len(links)} link totali nella pagina.")
+        
+        # Mostriamo i primi 5 link che contengono lettere per capire cosa legge
+        campioni = [a.get_text().strip() for a in links if len(a.get_text().strip()) > 3][:5]
+        st.write(f"DEBUG: Esempi di testo letti: {campioni}")
+
         for i, a in enumerate(links):
             testo = a.get_text().strip()
-            # Se il testo del link contiene un riferimento biblico (es. Gv 10, 7-21)
+            
+            # Cerchiamo se il testo contiene un libro (Mt, Mc, Lc, Gv)
             if any(lib in testo for lib in ["Mt", "Mc", "Lc", "Gv"]):
+                # Se lo trova, scriviamo cosa ha trovato per capire perché non lo accoppia
                 ref_trovato = analizza_intervallo(testo)
+                
                 if ref_trovato:
-                    # Confrontiamo con le nostre matrioske
                     for b_req in brani_list:
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
-                            # TROVATO! L'audio è solitamente il link del testo stesso
+                            st.success(f"DEBUG: MATCH TROVATO! '{testo}' corrisponde a '{b_req}'")
+                            
                             item = {"t": testo.replace("•", "").strip(), "audio": None, "pdf": None}
-                            href_main = urllib.parse.urljoin(url_van, a['href'])
-                            if href_main.lower().endswith('.mp3'):
-                                item["audio"] = href_main
+                            h_main = urllib.parse.urljoin(url_van, a['href'])
+                            if h_main.lower().endswith('.mp3'): item["audio"] = h_main
                             
-                            # Il PDF è il link dell'icona rossa SUBITO DOPO il testo (nello stesso blocco)
-                            # Guardiamo i 3 link successivi per sicurezza
-                            for j in range(i + 1, min(i + 4, len(links))):
-                                a_next = links[j]
-                                href_next = urllib.parse.urljoin(url_van, a_next['href'])
-                                if href_next.lower().endswith('.pdf') or 'trascrizioni' in href_next.lower():
-                                    item["pdf"] = href_next
+                            # Cerca il PDF nei paraggi
+                            for j in range(i + 1, min(i + 5, len(links))):
+                                h_next = urllib.parse.urljoin(url_van, links[j]['href'])
+                                if h_next.lower().endswith('.pdf') or 'trascrizioni' in h_next.lower():
+                                    item["pdf"] = h_next
                                     break
-                            
-                            if item["audio"] or item["pdf"]:
-                                validi.append(item)
-                            break
-    except: pass
-    
-    # Pulizia duplicati
-    visti, finale = set(), []
-    for x in validi:
-        if x['t'] not in visti:
-            finale.append(x)
-            visti.add(x['t'])
-    return finale
+                            validi.append(item)
+                else:
+                    # Se trova "Gv" ma non capisce i numeri, ce lo dice
+                    if "Gv" in testo:
+                        st.write(f"DEBUG: Trovato '{testo}' ma non riesco a leggere i versetti.")
+
+    except Exception as e:
+        st.error(f"DEBUG: Errore di connessione: {e}")
+        
+    return validi
     
 # --- 4. INTERFACCIA UTENTE ---
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
