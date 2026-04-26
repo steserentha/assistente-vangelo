@@ -5,7 +5,6 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import urllib.parse
-from urllib.parse import quote
 import os
 
 # --- 1. CONFIGURAZIONE PAGINA ---
@@ -23,11 +22,11 @@ except Exception as e:
     st.error("Configurazione API Key mancante nei Secrets di Streamlit.")
     st.stop()
 
-# --- CSS PER ANDARE A CAPO SU SMARTPHONE (Versione Pulita) ---
+# --- CSS PER ANDARE A CAPO SU SMARTPHONE ---
 st.markdown("""
 <style>
-/* Applica lo stile solo al contenuto dei messaggi e del markdown, non ai tasti di sistema */
-.stMarkdown p, .stMarkdown li, .stMarkdown span, code, pre {
+/* Uniforma dimensione, a capo e font per ogni elemento di testo */
+.stMarkdown, .stText, code, pre, p, span, div {
     white-space: pre-wrap !important;
     word-break: break-word !important;
     overflow-wrap: break-word !important;
@@ -36,15 +35,10 @@ st.markdown("""
     font-weight: normal !important;
 }
 
-/* Rimuove i margini extra dei blocchi di codice */
+/* Rimuove i margini extra dei blocchi di codice che possono sfalsare la visualizzazione */
 code, pre {
     padding: 0 !important;
     background-color: transparent !important;
-}
-
-/* Nasconde eventuali testi tecnici residui nelle icone della sidebar */
-[data-testid="stSidebarNav"] span {
-    white-space: nowrap !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -157,6 +151,44 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
             except: break
     return validi
 
+def cerca_villapizzone(brani_list, session):
+    validi = []
+    url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
+    try:
+        res = session.get(url_van, timeout=10)
+        res.encoding = 'utf-8'
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # Scansioniamo tutti gli elementi della lista (li)
+        items = soup.find_all('li')
+        for item in items:
+            testo_item = item.get_text()
+            # Se l'elemento contiene un riferimento biblico
+            if any(lib in testo_item for lib in ["Mt", "Mc", "Lc", "Gv"]):
+                ref_trovato = analizza_intervallo(testo_item)
+                if ref_trovato:
+                    # Confrontiamo con i brani cercati (matrioske incluse)
+                    for b_req in brani_list:
+                        ref_req = analizza_intervallo(b_req)
+                        if sono_sovrapposti(ref_req, ref_trovato):
+                            links = item.find_all('a', href=True)
+                            res_item = {"t": testo_item.strip().replace("• ", ""), "audio": None, "pdf": None}
+                            for a in links:
+                                href = a['href']
+                                # Rendiamo il link assoluto
+                                href = urllib.parse.urljoin(url_van, href)
+                                
+                                if href.endswith('.mp3'):
+                                    res_item["audio"] = href
+                                elif href.endswith('.pdf'):
+                                    res_item["pdf"] = href
+                            
+                            if res_item["audio"] or res_item["pdf"]:
+                                validi.append(res_item)
+                            break
+    except: pass
+    return validi
+
 # --- 4. INTERFACCIA UTENTE ---
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
@@ -178,23 +210,15 @@ col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
 btn_oggi = col2.button("📅 Oggi")
 
-# Sezione Gestione Database nella sidebar
+# Tasto manuale per aggiornare il file da Dropbox (nella sidebar)
 with st.sidebar:
     st.divider()
-    st.write("📊 **Gestione Database**")
-    
-    # Tasto per aggiornare (codice esistente)
-    if st.button("🔄 Aggiorna Database", use_container_width=True):
+    if st.button("🔄 Aggiorna Database"):
         with st.spinner("Scaricando nuova versione..."):
             r = requests.get(url_db, allow_redirects=True)
             with open(nome_file, 'wb') as f: f.write(r.content)
             st.success("Database aggiornato!")
             st.rerun()
-    
-    # NUOVO: Tasto per consultare direttamente su Dropbox
-    # Usiamo dl=0 per aprire l'anteprima invece di scaricare il file
-    url_anteprima = url_db.replace("&dl=1", "&dl=0")
-    st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
 # La ricerca parte se premiamo Cerca, Oggi, o se un bottone ha impostato la ricerca automatica
 if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
@@ -212,46 +236,21 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
         db = [{"festa": p.text.split("|")[0].replace("[", "").replace("]", "").strip(), "vangelo": p.text.split("|")[1].strip(), "analisi": analizza_intervallo(p.text.split("|")[1].strip())} for p in doc.paragraphs if "|" in p.text]
 
         brano_id = ""
+        # Usiamo il testo salvato in memoria
         testo_pulito = st.session_state["testo_ricerca"]
 
         if btn_oggi:
-            st.session_state["is_oggi"] = True
             try:
                 res = session.get("https://www.apostolesacrocuore.org/vangelo-oggi-ambrosiano.php", timeout=10)
                 tag = BeautifulSoup(res.text, 'html.parser').find(['h3', 'b', 'strong'], text=re.compile(r'(Mt|Mc|Lc|Gv)\s+\d+'))
                 if tag: brano_id = re.search(r'(Mt|Mc|Lc|Gv)\s+\d+.*', tag.text, re.IGNORECASE).group(0)
             except: pass
+        elif testo_pulito and any(testo_pulito.upper().startswith(p) for p in ["MT", "MC", "LC", "GV"]):
+            brano_id = testo_pulito
         elif testo_pulito:
-            st.session_state["is_oggi"] = False
-            # 1. Controllo se è un brano scritto direttamente (es. Mc 1,1)
-            if any(testo_pulito.upper().startswith(p) for p in ["MT", "MC", "LC", "GV"]):
-                brano_id = testo_pulito
-            # 2. ALTRIMENTI cerco la festa nel Database Word
-            else:
-                in_norm = normalizza_liturgia(testo_pulito)
-                feste = [i for i in db if all(re.search(rf'\b{re.escape(p)}\b', normalizza_liturgia(i['festa'])) for p in in_norm.split())]
-                
-                # Match esatto per evitare ambiguità inutili
-                match_esatto = [i for i in feste if normalizza_liturgia(i['festa']) == in_norm]
-                if match_esatto: feste = match_esatto
-
-                if len({f['vangelo'] for f in feste}) > 1:
-                    st.warning("⚠️ Ambiguità: specifica l'anno.")
-                    st.write("Seleziona quella corretta:")
-                    def clicca_opzione(nome):
-                        st.session_state["testo_ricerca"] = nome
-                        st.session_state["vai_alla_ricerca"] = True
-                    for f in feste:
-                        nome_f = f['festa']
-                        st.button(nome_f, key=f"btn_{nome_f}", on_click=clicca_opzione, args=(nome_f,))
-                    st.stop()
-                elif feste: 
-                    brano_id = feste[0]['vangelo']
-                else:
-                    # Se non è nel Word, prova come "Tema" generico
-                    resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Tema '{testo_pulito}' -> brano (es. Gv 4,5-42) o 'NULLA'.").text.strip()
-                    if any(p in resp.upper() for p in ["MT", "MC", "LC", "GV"]): brano_id = resp
-                    else: st.error("Nessun risultato."); st.stop()
+            in_norm = normalizza_liturgia(testo_pulito)
+            # Ricerca precisa (\b) per evitare che 'B' trovi 'AMBROSIANO'
+            feste = [i for i in db if all(re.search(rf'\b{re.escape(p)}\b', normalizza_liturgia(i['festa'])) for p in in_norm.split())]
             
 # Se clicchiamo un bottone, cerchiamo il match esatto per evitare il loop
             match_esatto = [i for i in feste if normalizza_liturgia(i['festa']) == in_norm]
@@ -301,7 +300,7 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                 an = analizza_intervallo(b)
                 if an and (an[2]//1000 > an[1]//1000): brani_c.append(f"{an[0]} {an[2]//1000}, 1-{an[2]%1000}")
 
-            t1, t2, t3 = st.tabs(["✍️ Testo", "👤 Autori", "🏛️ Barzillai"])
+            t1, t2, t3, t4 = st.tabs(["✍️ Testo", "👤 Autori", "🏛️ Barzillai", "🏡 Villapizzone"])
             
             with t1:
                 st.markdown("### Testo del Vangelo")
@@ -322,13 +321,6 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                     st.error(f"Errore tecnico: {str(e)}")
 
             with t2:
-#LINK VIDEO CHIESA DI MILANO (Dinamico per "Oggi") ---
-                if st.session_state.get("is_oggi"):
-                    # Usiamo il link della playlist senza l'ID del video specifico
-                    url_playlist = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
-                    st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_playlist})**")
-                    st.caption("Il link apre la lista: clicca sul primo video (il più recente).")
-                    st.write("---")
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
                 trovato_a = False
                 for autore in sorted(list(set(list(AUTORI_QUMRAN.keys()) + list(AUTORI_VOLTO.keys())))):
@@ -344,26 +336,24 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                             for r in res_q: st.write(f"✅ Qumran ({r['b']}): [Link]({r['u']})")
                             for r in res_v: st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})")
                 if not trovato_a: st.info("Nessun commento trovato.")
-# --- SEZIONE NELLA PAROLA (Semeraro & Pasolini) ---
-                st.write("---")
-                st.write("📖 **Nella Parola (Semeraro & Pasolini)**")
-                st.caption("Ricerca automatica (Originale + Matrioske):")
-                
-                for b in brani_c:
-                    # 1. Togliamo lettere extra (a, b...)
-                    b_pulito = re.sub(r'(?<=\d)[a-z]', '', b, flags=re.IGNORECASE)
-                    # 2. Compattiamo (es: Mc 6, 1-5 -> Mc 6,1-5) per essere più precisi
-                    b_senza_spazi = b_pulito.replace(" ", "")
-                    b_finale = re.sub(r'^([A-Z][a-z]?)(\d)', r'\1 \2', b_senza_spazi)
-                    
-                    url_np = f"https://nellaparola.it/commenti#s={quote(b_finale)}"
-                    st.markdown(f"👉 **[Commenti su {b_finale}]({url_np})**")
-                
-                st.warning("⚠️ Se il primo link mostra vangeli errati, usa quello della Matrioska (es. Mc 6,1-6).")
 
             with t3:
-                st.markdown("### Don Romeo Cavedo (104 pagine)")
-                lb = cerca_barzillai_chirurgico(brani_c, session, 104)
+                st.markdown("### Don Romeo Cavedo (60 pagine)")
+                lb = cerca_barzillai_chirurgico(brani_c, session, 60)
                 if lb:
                     for x in lb: st.write(f"✅ [{x['t']}]({x['u']})")
                 else: st.warning("Nulla in Barzillai.")
+
+	    with t4:
+                st.markdown("### Gesuiti Villapizzone (Audio & PDF)")
+                lv = cerca_villapizzone(brani_c, session)
+                if lv:
+                    for v in lv:
+                        # Prepariamo i link visibili
+                        links_list = []
+                        if v['audio']: links_list.append(f"[🔊 Audio]({v['audio']})")
+                        if v['pdf']: links_list.append(f"[📄 PDF]({v['pdf']})")
+                        
+                        st.write(f"✅ {v['t']}: {' | '.join(links_list)}")
+                else: 
+                    st.warning("Nessun commento trovato su Villapizzone per questo brano.")
