@@ -139,12 +139,13 @@ def normalizza_liturgia(testo):
     return re.sub(r'\s+', ' ', t).strip()
 
 # --- 5. CARICAMENTO E GESTIONE DATABASE WORD ---
-# Utilizziamo il link aggiornato fornito dall'utente per Liturgia-semplificata.docx
+# Utilizziamo il link Dropbox corretto per Liturgia-semplificata.docx
 url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=1"
 nome_file = "database_liturgico.docx"
 
 def scarica_db():
     try:
+        # Forziamo dl=1 per lo scaricamento
         r = requests.get(url_db, allow_redirects=True, timeout=15)
         if r.status_code == 200:
             with open(nome_file, 'wb') as f: f.write(r.content)
@@ -256,10 +257,11 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
             except: st.warning("Gemini non ha risposto. Riprova tra poco.")
 
         with t2:
+            # --- LINK VIDEO CHIESA DI MILANO (Dinamico per "Oggi") ---
             if st.session_state.get("is_oggi"):
                 url_p = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
                 st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_p})**")
-                st.caption("Clicca sul primo video della playlist.")
+                st.caption("Il link apre la lista: clicca sul primo video della playlist.")
                 st.write("---")
 
             mappa_v = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
