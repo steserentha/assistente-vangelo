@@ -20,7 +20,9 @@ st.markdown("""
     font-size: 1.1rem !important;
     font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
 }
+/* Nasconde testi tecnici nelle icone della sidebar */
 [data-testid="stSidebarNav"] span { white-space: nowrap !important; }
+/* Pulsanti sidebar a tutta larghezza */
 div.stButton > button { width: 100% !important; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
@@ -32,12 +34,12 @@ try:
     # Usiamo Gemini 2.5 Flash come richiesto
     NOME_MODELLO = "gemini-2.5-flash" 
     session = requests.Session()
-    # User-Agent fondamentale per Villapizzone
+    # User-Agent fondamentale per Villapizzone e Barzillai
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     })
 except Exception as e:
-    st.error("Errore configurazione API.")
+    st.error("Errore configurazione API nei Secrets.")
     st.stop()
 
 # --- 3. LOGICA BIBLICA E MATRIOSKE ---
@@ -63,7 +65,7 @@ def espandi_matrioska(brano):
 # --- 4. FUNZIONI DI RICERCA COMMENTI ---
 
 def cerca_villapizzone(brani_list, session):
-    """Questa è la versione che ha funzionato nel Lab Debug"""
+    """Versione sbloccata che vede tutti i link della pagina"""
     validi = []
     url = "https://www.gesuiti-villapizzone.it/sito/van.html"
     try:
@@ -81,11 +83,10 @@ def cerca_villapizzone(brani_list, session):
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
                             item = {"t": testo.replace("•", "").strip(), "audio": None, "pdf": None}
-                            # Il link sul testo stesso è l'audio
                             h = urllib.parse.urljoin(url, a['href'])
                             if h.lower().endswith('.mp3'): item["audio"] = h
                             
-                            # Cerca l'icona rossa (PDF) nei 4 link successivi
+                            # Cerca l'icona rossa (PDF) nei link successivi
                             for j in range(i+1, i+5):
                                 if j < len(links):
                                     h_next = urllib.parse.urljoin(url, links[j]['href'])
@@ -144,6 +145,7 @@ def normalizza_liturgia(testo):
     return re.sub(r'\s+', ' ', t).strip()
 
 # --- 5. CARICAMENTO E GESTIONE DATABASE WORD ---
+# Utilizziamo il link Dropbox fornito per Liturgia-semplificata.docx
 url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=1"
 nome_file = "database_liturgico.docx"
 
@@ -162,11 +164,12 @@ def carica_db():
     try:
         doc = Document(nome_file)
         data = []
+        # Torno alla logica semplice della prima tabella
         for row in doc.tables[0].rows[1:]:
             if len(row.cells) >= 2:
                 data.append({"festa": row.cells[0].text.strip(), "vangelo": row.cells[1].text.strip()})
         return data
-    except Exception as e:
+    except:
         if os.path.exists(nome_file): 
             try: os.remove(nome_file)
             except: pass
@@ -192,8 +195,9 @@ with st.sidebar:
             if scarica_db():
                 st.success("Aggiornato!"); st.rerun()
             else: 
-                st.error("Impossibile scaricare.")
+                st.error("Errore download.")
     
+    # Per la consultazione online usiamo dl=0
     url_anteprima = url_db.replace("&dl=1", "&dl=0")
     st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
@@ -230,7 +234,7 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
             if match_esatto: feste = match_esatto
 
             if len({f['vangelo'] for f in feste}) > 1:
-                st.warning("⚠️ Troppe corrispondenze:")
+                st.warning("⚠️ Ambiguità trovata:")
                 for f in feste:
                     st.button(f['festa'], key=f"btn_{f['festa']}", 
                               on_click=lambda n=f['festa']: st.session_state.update({"testo_ricerca": n, "vai_alla_ricerca": True}))
