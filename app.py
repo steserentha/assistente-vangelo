@@ -27,10 +27,10 @@ except Exception as e:
     st.error("Configurazione API Key mancante nei Secrets di Streamlit.")
     st.stop()
 
-# --- CSS PER ANDARE A CAPO E PULIZIA UI ---
+# --- CSS PER ANDARE A CAPO E UNIFORMARE I BOX SIDEBAR ---
 st.markdown("""
 <style>
-/* Applichiamo il font solo al contenuto vero e proprio, non agli elementi di sistema Streamlit */
+/* Applichiamo il font solo al contenuto vero e proprio */
 .stMarkdown p, .stMarkdown li, code, pre, .stText {
     white-space: pre-wrap !important;
     word-break: break-word !important;
@@ -39,24 +39,29 @@ st.markdown("""
     font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
 }
 
-/* Nasconde le etichette tecniche che appaiono al posto delle icone (es. board_double_arrow) */
+/* Nasconde le etichette tecniche che appaiono al posto delle icone */
 [data-testid="stSidebarNav"] span, button span p {
     font-family: inherit !important;
+}
+
+/* Uniforma i box del database nella sidebar: stessa grandezza e testo a sinistra */
+div[data-testid="stSidebar"] .stButton > button, 
+div[data-testid="stSidebar"] .stLinkButton > a {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important; /* Allineamento a sinistra */
+    gap: 12px !important;
+    padding-left: 20px !important;
+    min-height: 48px !important;
+    text-decoration: none !important;
+    border-radius: 8px !important;
 }
 
 /* Rimuove i margini extra dei blocchi di codice */
 code, pre {
     padding: 0 !important;
     background-color: transparent !important;
-}
-
-/* Uniforma i pulsanti del database nella sidebar */
-div.stButton > button {
-    width: 100% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 10px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -242,7 +247,7 @@ btn_oggi = col2.button("📅 Oggi")
 
 with st.sidebar:
     st.divider()
-    # Tasto Aggiorna con emoji integrata
+    # Tasto Aggiorna Database
     if st.button("🔄 Aggiorna Database"):
         with st.spinner("Scaricando nuova versione..."):
             r = requests.get(url_db, allow_redirects=True)
@@ -250,9 +255,9 @@ with st.sidebar:
             st.success("Database aggiornato!")
             st.rerun()
     
-    # Tasto Consulta con emoji integrata e allineamento CSS
+    # Tasto Consulta Database
     url_anteprima = url_db.replace("dl=1", "dl=0")
-    st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
+    st.link_button("📂 Consulta Database", url_anteprima)
 
 if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching")) or st.session_state.get("vai_alla_ricerca"):
     if "vai_alla_ricerca" in st.session_state:
