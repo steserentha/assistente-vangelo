@@ -154,53 +154,50 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
 
 def cerca_villapizzone(brani_list, session):
     validi = []
-    # Mappatura delle pagine per ogni Vangelo sul sito di Villapizzone
-    mappa_pagine = {"Mt": "van.html", "Mc": "van_mc.html", "Lc": "van_lc.html", "Gv": "van_gv.html"}
-    
-    # Identifichiamo il libro (Gv, Mt...) dal primo brano cercato
-    primo_brano = brani_list[0] if brani_list else ""
-    libro = "Mt"
-    for k in mappa_pagine.keys():
-        if k in primo_brano:
-            libro = k
-            break
-            
-    url_base = "https://www.gesuiti-villapizzone.it/sito/"
-    url_vangelo = f"{url_base}{mappa_pagine[libro]}"
-    
+    url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
     try:
-        res = session.get(url_vangelo, timeout=10)
+        res = session.get(url_van, timeout=10)
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Cerchiamo tutti i link (a) che contengono il nome del libro (es. "Gv")
-        for a_tag in soup.find_all('a'):
-            testo_link = a_tag.get_text().strip()
-            if libro in testo_link:
-                ref_trovato = analizza_intervallo(testo_link)
+        # Scansioniamo tutti i link della pagina (sono tutti in van.html)
+        for a in soup.find_all('a'):
+            testo = a.get_text().strip()
+            # Se la riga contiene un riferimento a un Vangelo
+            if any(lib in testo for lib in ["Mt", "Mc", "Lc", "Gv"]):
+                ref_trovato = analizza_intervallo(testo)
                 if ref_trovato:
-                    # Verifichiamo se il brano trovato coincide con uno dei nostri (matrioske incluse)
                     for b_req in brani_list:
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
-                            # Trovato! Ora cerchiamo i file audio e pdf nel suo "blocco"
-                            # Solitamente i link sono nello stesso <li> o nel <td> vicino
-                            parent = a_tag.find_parent(['li', 'p', 'tr'])
-                            res_item = {"t": testo_link, "audio": None, "pdf": None}
+                            # Trovato! Creiamo l'elemento
+                            item = {"t": testo.replace("•", "").strip(), "audio": None, "pdf": None}
                             
+                            # 1. Il link principale (il testo) di solito è l'audio (.mp3)
+                            h_a = urllib.parse.urljoin(url_van, a['href'])
+                            if h_a.lower().endswith('.mp3'): item["audio"] = h_a
+                            
+                            # 2. Cerchiamo nel "vicinato" (cella o riga) l'icona PDF
+                            parent = a.find_parent(['li', 'td', 'p', 'font'])
                             if parent:
-                                for link in parent.find_all('a', href=True):
-                                    h = urllib.parse.urljoin(url_vangelo, link['href'])
-                                    if h.endswith('.mp3'): res_item["audio"] = h
-                                    elif h.endswith('.pdf') or 'trascrizioni' in h: res_item["pdf"] = h
-                                    # Caso particolare: il link principale stesso è l'audio
-                                    elif link.get_text().strip() == testo_link and h.endswith('.mp3'):
-                                        res_item["audio"] = h
+                                for a_v in parent.find_all('a', href=True):
+                                    h_v = urllib.parse.urljoin(url_van, a_v['href'])
+                                    if h_v.lower().endswith('.mp3'): item["audio"] = h_v
+                                    elif h_v.lower().endswith('.pdf') or 'trascrizioni' in h_v.lower():
+                                        item["pdf"] = h_v
                             
-                            if res_item["audio"] or res_item["pdf"]:
-                                validi.append(res_item)
+                            if item["audio"] or item["pdf"]:
+                                validi.append(item)
                             break
     except: pass
+    
+    # Rimuoviamo i duplicati mantenendo l'ordine
+    visti, finale = set(), []
+    for x in validi:
+        if x['t'] not in visti:
+            finale.append(x)
+            visti.add(x['t'])
+    return finale
     
     # Rimuoviamo duplicati
     visti, finale = set(), []
@@ -384,9 +381,9 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                 lv = cerca_villapizzone(brani_c, session)
                 if lv:
                     for v in lv:
-                        links_list = []
-                        if v['audio']: links_list.append(f"[🔊 Audio]({v['audio']})")
-                        if v['pdf']: links_list.append(f"[📄 PDF]({v['pdf']})")
-                        st.write(f"✅ {v['t']}: {' | '.join(links_list)}")
+                        links = []
+                        if v['audio']: links.append(f"[🔊 Audio]({v['audio']})")
+                        if v['pdf']: links.append(f"[📄 PDF]({v['pdf']})")
+                        st.write(f"✅ {v['t']}: {' | '.join(links)}")
                 else: 
                     st.warning("Nessun commento trovato su Villapizzone.")
