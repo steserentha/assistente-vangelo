@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import urllib.parse
+from urllib.parse import quote  # <--- AGGIUNGI QUESTA RIGA
 import os
 
 # --- 1. CONFIGURAZIONE PAGINA ---
