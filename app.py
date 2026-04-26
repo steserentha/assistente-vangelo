@@ -300,18 +300,14 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                 an = analizza_intervallo(b)
                 if an and (an[2]//1000 > an[1]//1000): brani_c.append(f"{an[0]} {an[2]//1000}, 1-{an[2]%1000}")
 
+# --- DEFINIZIONE SCHEDE (TAB) ---
             t1, t2, t3, t4 = st.tabs(["✍️ Testo", "👤 Autori", "🏛️ Barzillai", "🏡 Villapizzone"])
             
             with t1:
                 st.markdown("### Testo del Vangelo")
-                # Prompt più forte per non far sbagliare brano all'IA
                 p_bib = f"Trascrivi il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. Nessun commento."
-                
                 try:
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
-                    
-                    # --- IL PARACADUTE ---
-                    # Verifichiamo se la risposta esiste PRIMA di provare a modificarla
                     if risposta and hasattr(risposta, 'text') and risposta.text:
                         testo_finale = risposta.text.replace('**','').strip()
                         st.markdown(f"```\n{testo_finale}\n```")
@@ -321,6 +317,13 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                     st.error(f"Errore tecnico: {str(e)}")
 
             with t2:
+                # --- LINK VIDEO CHIESA DI MILANO (Dinamico per "Oggi") ---
+                if st.session_state.get("is_oggi"):
+                    url_playlist = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
+                    st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_playlist})**")
+                    st.caption("Il link apre la lista: clicca sul primo video (il più recente).")
+                    st.write("---")
+
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
                 trovato_a = False
                 for autore in sorted(list(set(list(AUTORI_QUMRAN.keys()) + list(AUTORI_VOLTO.keys())))):
@@ -335,25 +338,34 @@ if btn_cerca or btn_oggi or query or st.session_state.get("vai_alla_ricerca"):
                         with st.expander(f"👤 {autore}", expanded=True):
                             for r in res_q: st.write(f"✅ Qumran ({r['b']}): [Link]({r['u']})")
                             for r in res_v: st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})")
+                
                 if not trovato_a: st.info("Nessun commento trovato.")
+                
+                # --- SEZIONE NELLA PAROLA (Semeraro & Pasolini) ---
+                st.write("---")
+                st.write("📖 **Nella Parola (Semeraro & Pasolini)**")
+                for b in brani_c:
+                    b_pulito = re.sub(r'(?<=\d)[a-z]', '', b, flags=re.IGNORECASE)
+                    b_senza_spazi = b_pulito.replace(" ", "")
+                    b_finale = re.sub(r'^([A-Z][a-z]?)(\d)', r'\1 \2', b_senza_spazi)
+                    url_np = f"https://nellaparola.it/commenti#s={quote(b_finale)}"
+                    st.markdown(f"👉 **[Commenti su {b_finale}]({url_np})**")
 
             with t3:
-                st.markdown("### Don Romeo Cavedo (60 pagine)")
-                lb = cerca_barzillai_chirurgico(brani_c, session, 60)
+                st.markdown("### Don Romeo Cavedo (104 pagine)")
+                lb = cerca_barzillai_chirurgico(brani_c, session, 104)
                 if lb:
                     for x in lb: st.write(f"✅ [{x['t']}]({x['u']})")
                 else: st.warning("Nulla in Barzillai.")
 
-	    with t4:
+            with t4:
                 st.markdown("### Gesuiti Villapizzone (Audio & PDF)")
                 lv = cerca_villapizzone(brani_c, session)
                 if lv:
                     for v in lv:
-                        # Prepariamo i link visibili
                         links_list = []
                         if v['audio']: links_list.append(f"[🔊 Audio]({v['audio']})")
                         if v['pdf']: links_list.append(f"[📄 PDF]({v['pdf']})")
-                        
                         st.write(f"✅ {v['t']}: {' | '.join(links_list)}")
                 else: 
-                    st.warning("Nessun commento trovato su Villapizzone per questo brano.")
+                    st.warning("Nessun commento trovato su Villapizzone.")
