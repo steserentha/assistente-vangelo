@@ -131,7 +131,7 @@ def pulisci_link_barzillai(tag_a):
         return f"http://www.barzillai.it/{path}" if not path.startswith('http') else path
     return href if href and not href.startswith('javascript') else None
 
-def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60): 
+def cerca_barzillai_chirurgico(brani_list, session, ref_originale, max_pagine=60): 
     validi, visti_url = [], set()
     for brano in brani_list:
         parti = re.split(r'(\d+|,|-|–)', brano.replace(" ", ""))
@@ -145,6 +145,11 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
                 blocchi = re.split(r'Data:', str(soup), flags=re.IGNORECASE)
                 for blocco in blocchi:
                     if regex_b.search(blocco):
+                        # Controllo se il blocco contiene effettivamente i versetti richiesti
+                        ref_trovato = analizza_intervallo(blocco)
+                        if ref_trovato and not sono_sovrapposti(ref_originale, ref_trovato):
+                            continue
+                            
                         for a in BeautifulSoup(blocco, 'html.parser').find_all('a'):
                             t_l = a.get_text().upper()
                             if any(key in t_l for key in ["TESTO", "ASCOLTA", "AUDIO"]):
@@ -156,12 +161,11 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
             except: break
     return validi
 
-def cerca_villapizzone(brani_list, session):
-    """Versione sbloccata che scansiona correttamente la pagina van.html."""
+def cerca_villapizzone(brani_list, session, ref_originale):
+    """Versione sbloccata che scansiona correttamente la pagina van.html con filtro chirurgico."""
     validi = []
     url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
     try:
-        # Headers per bypassare il blocco (come nel debug lab)
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
@@ -169,26 +173,24 @@ def cerca_villapizzone(brani_list, session):
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Recuperiamo tutti i link (<a>) della pagina
         links = soup.find_all('a')
-        
         for i, a in enumerate(links):
             testo = a.get_text().strip()
-            # Se il link contiene un riferimento a un Vangelo (Mt, Mc, Lc, Gv)
             if any(lib in testo for lib in ["Mt", "Mc", "Lc", "Gv"]):
                 ref_trovato = analizza_intervallo(testo)
                 if ref_trovato:
+                    # Filtro chirurgico: il risultato deve sovrapporsi alla richiesta originale
+                    if not sono_sovrapposti(ref_originale, ref_trovato):
+                        continue
+                        
                     for b_req in brani_list:
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
-                            # Trovata corrispondenza!
                             item = {"t": testo.replace("•", "").strip(), "audio": None, "pdf": None}
-                            # L'audio è solitamente il link del testo stesso
                             h_main = urllib.parse.urljoin(url_van, a['href'])
                             if h_main.lower().endswith('.mp3'):
                                 item["audio"] = h_main
                             
-                            # Il PDF è l'icona rossa SUBITO DOPO (nei link successivi)
                             for j in range(i + 1, min(i + 5, len(links))):
                                 a_next = links[j]
                                 h_next = urllib.parse.urljoin(url_van, a_next['href'])
@@ -200,7 +202,6 @@ def cerca_villapizzone(brani_list, session):
                                 validi.append(item)
                             break
     except: pass
-    # Rimuoviamo i duplicati mantenendo l'ordine
     visti, finale = set(), []
     for x in validi:
         if x['t'] not in visti:
@@ -212,24 +213,20 @@ def cerca_villapizzone(brani_list, session):
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
 
-# Definiamo subito i dati del database, così sono visibili anche alla sidebar
 nome_file = 'Liturgia_semplificata.docx'
 url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=1"
 
 st.title("📖 Assistente Liturgico")
 
-# Inizializziamo la memoria per gestire la barra di ricerca
 if "testo_ricerca" not in st.session_state:
     st.session_state["testo_ricerca"] = ""
 
-# La barra di ricerca
 query = st.text_input("Brano, festa o tema:", key="input_query")
 
 col1, col2 = st.columns([1, 4])
 btn_cerca = col1.button("🔍 Cerca", type="primary")
 btn_oggi = col2.button("📅 Oggi")
 
-# Tasto manuale per aggiornare il file da Dropbox (nella sidebar)
 with st.sidebar:
     st.divider()
     if st.button("🔄 Aggiorna Database"):
@@ -239,28 +236,22 @@ with st.sidebar:
             st.success("Database aggiornato!")
             st.rerun()
     
-    # --- NUOVO TASTO CONSULTA DATABASE ---
-    # Creiamo il link di anteprima sostituendo dl=1 con dl=0
     url_anteprima = url_db.replace("dl=1", "dl=0")
     st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
-# La ricerca parte se premiamo Cerca, Oggi, o se un bottone ha impostato la ricerca automatica
 if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching")) or st.session_state.get("vai_alla_ricerca"):
     if "vai_alla_ricerca" in st.session_state:
         del st.session_state["vai_alla_ricerca"]
 
     with st.spinner("Analisi in corso..."):
-        # Se il file non esiste (primo avvio), lo scarichiamo
         if not os.path.exists(nome_file):
             r = requests.get(url_db, allow_redirects=True)
             with open(nome_file, 'wb') as f: f.write(r.content)
 
-        # Carichiamo il database
         doc = Document(nome_file)
         db = [{"festa": p.text.split("|")[0].replace("[", "").replace("]", "").strip(), "vangelo": p.text.split("|")[1].strip(), "analisi": analizza_intervallo(p.text.split("|")[1].strip())} for p in doc.paragraphs if "|" in p.text]
 
         brano_id = ""
-        # Sincronizziamo il testo ricerca con la query
         if query:
             st.session_state["testo_ricerca"] = query
         
@@ -277,7 +268,6 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
         elif testo_pulito:
             in_norm = normalizza_liturgia(testo_pulito)
             feste = [i for i in db if all(re.search(rf'\b{re.escape(p)}\b', normalizza_liturgia(i['festa'])) for p in in_norm.split())]
-            
             match_esatto = [i for i in feste if normalizza_liturgia(i['festa']) == in_norm]
             if match_esatto:
                 feste = match_esatto
@@ -285,11 +275,9 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
             if len({f['vangelo'] for f in feste}) > 1:
                 st.warning("⚠️ Ambiguità: specifica l'anno.")
                 st.write("Seleziona quella corretta:")
-                
                 def clicca_opzione(nome):
                     st.session_state["testo_ricerca"] = nome
                     st.session_state["vai_alla_ricerca"] = True
-
                 for f in feste:
                     nome_f = f['festa']
                     st.button(nome_f, key=f"btn_{nome_f}", on_click=clicca_opzione, args=(nome_f,))
@@ -322,19 +310,18 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
                 an = analizza_intervallo(b)
                 if an and (an[2]//1000 > an[1]//1000): brani_c.append(f"{an[0]} {an[2]//1000}, 1-{an[2]%1000}")
 
-            # --- DEFINIZIONE SCHEDE (TAB) ---
             t1, t2, t3, t4 = st.tabs(["✍️ Testo", "👤 Autori", "🏛️ Barzillai", "🏡 Villapizzone"])
             
             with t1:
                 st.markdown("### Testo del Vangelo")
-                p_bib = f"Trascrivi il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. Nessun commento."
+                p_bib = f"Trascrivi INTEGRALMENTE il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE OBBLIGATORIE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. NON aggiungere commenti, introduzioni o conclusioni."
                 try:
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
                     if risposta and hasattr(risposta, 'text') and risposta.text:
                         testo_finale = risposta.text.replace('**','').strip()
                         st.markdown(f"```\n{testo_finale}\n```")
                     else:
-                        st.warning("⚠️ Gemini non ha risposto in tempo. Prova a cliccare di nuovo su Cerca.")
+                        st.warning("⚠️ Gemini non ha risposto. Riprova.")
                 except Exception as e:
                     st.error(f"Errore tecnico: {str(e)}")
 
@@ -342,7 +329,7 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
                 if st.session_state.get("is_oggi"):
                     url_playlist = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
                     st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_playlist})**")
-                    st.caption("Il link apre la lista: clicca sul primo video (il più recente).")
+                    st.caption("Il link apre la lista: clicca sul primo video.")
                     st.write("---")
 
                 mappa_volto = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
@@ -373,14 +360,14 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
 
             with t3:
                 st.markdown("### Don Romeo Cavedo (104 pagine)")
-                lb = cerca_barzillai_chirurgico(brani_c, session, 104)
+                lb = cerca_barzillai_chirurgico(brani_c, session, an_req, 104)
                 if lb:
                     for x in lb: st.write(f"✅ [{x['t']}]({x['u']})")
                 else: st.warning("Nulla in Barzillai.")
 
             with t4:
                 st.markdown("### Gesuiti Villapizzone (Audio & PDF)")
-                lv = cerca_villapizzone(brani_c, session)
+                lv = cerca_villapizzone(brani_c, session, an_req)
                 if lv:
                     for v in lv:
                         links_list = []
