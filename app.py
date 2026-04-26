@@ -157,42 +157,43 @@ def cerca_villapizzone(brani_list, session):
     url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
     try:
         res = session.get(url_van, timeout=10)
-        # Il sito usa un'encoding particolare, forziamo il riconoscimento
-        res.encoding = res.apparent_encoding 
-        soup = BeautifulSoup(res.text, 'html.parser')
+        # Usiamo una decodifica sicura per i caratteri speciali del sito
+        content = res.content.decode('utf-8', errors='ignore')
+        soup = BeautifulSoup(content, 'html.parser')
         
-        # Scansioniamo ogni possibile contenitore di testo (celle, liste, paragrafi)
-        percorso = soup.find_all(['td', 'li', 'p'])
-        for blocco in percorso:
-            testo = blocco.get_text().strip()
-            # Cerchiamo se il blocco parla di un Vangelo (Mt, Mc, Lc, Gv)
+        # Recuperiamo tutti i link (<a>) della pagina
+        links = soup.find_all('a')
+        for i, a in enumerate(links):
+            testo = a.get_text().strip()
+            # Se il testo del link contiene un riferimento biblico (es. Gv 10, 7-21)
             if any(lib in testo for lib in ["Mt", "Mc", "Lc", "Gv"]):
-                # Pulizia profonda del testo per il confronto (toglie pallini e spazi extra)
-                testo_pulito = testo.replace("•", "").strip()
-                ref_trovato = analizza_intervallo(testo_pulito)
-                
+                ref_trovato = analizza_intervallo(testo)
                 if ref_trovato:
+                    # Confrontiamo con le nostre matrioske
                     for b_req in brani_list:
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
-                            # TROVATO! Ora prendiamo tutti i link dentro questo blocco
-                            item = {"t": testo_pulito, "audio": None, "pdf": None}
-                            links = blocco.find_all('a', href=True)
+                            # TROVATO! L'audio è solitamente il link del testo stesso
+                            item = {"t": testo.replace("•", "").strip(), "audio": None, "pdf": None}
+                            href_main = urllib.parse.urljoin(url_van, a['href'])
+                            if href_main.lower().endswith('.mp3'):
+                                item["audio"] = href_main
                             
-                            for l in links:
-                                href = urllib.parse.urljoin(url_van, l['href'])
-                                # Identifichiamo i file dalla loro estensione o cartella
-                                if href.lower().endswith('.mp3'):
-                                    item["audio"] = href
-                                elif href.lower().endswith('.pdf') or 'trascrizioni' in href.lower():
-                                    item["pdf"] = href
+                            # Il PDF è il link dell'icona rossa SUBITO DOPO il testo (nello stesso blocco)
+                            # Guardiamo i 3 link successivi per sicurezza
+                            for j in range(i + 1, min(i + 4, len(links))):
+                                a_next = links[j]
+                                href_next = urllib.parse.urljoin(url_van, a_next['href'])
+                                if href_next.lower().endswith('.pdf') or 'trascrizioni' in href_next.lower():
+                                    item["pdf"] = href_next
+                                    break
                             
                             if item["audio"] or item["pdf"]:
                                 validi.append(item)
-                            break # Passa al prossimo blocco dopo il match
+                            break
     except: pass
     
-    # Rimuoviamo duplicati (stessa etichetta)
+    # Pulizia duplicati
     visti, finale = set(), []
     for x in validi:
         if x['t'] not in visti:
