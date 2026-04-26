@@ -13,7 +13,6 @@ st.set_page_config(page_title="Assistente Liturgico", page_icon="📖", layout="
 
 st.markdown("""
 <style>
-/* Applica lo stile solo al contenuto testuale per evitare di mostrare icone di sistema */
 .stMarkdown p, .stMarkdown li, .stMarkdown span, code, pre {
     white-space: pre-wrap !important;
     word-break: break-word !important;
@@ -21,9 +20,7 @@ st.markdown("""
     font-size: 1.1rem !important;
     font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
 }
-/* Nasconde testi tecnici nelle icone della sidebar */
 [data-testid="stSidebarNav"] span { white-space: nowrap !important; }
-/* Pulsanti sidebar a tutta larghezza */
 div.stButton > button { width: 100% !important; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
@@ -32,13 +29,15 @@ div.stButton > button { width: 100% !important; margin-bottom: 5px; }
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
+    # Usiamo Gemini 2.5 Flash come richiesto
     NOME_MODELLO = "gemini-2.5-flash" 
     session = requests.Session()
+    # User-Agent fondamentale per Villapizzone
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     })
 except Exception as e:
-    st.error("Errore nella configurazione dell'API Key nei Secrets.")
+    st.error("Errore configurazione API.")
     st.stop()
 
 # --- 3. LOGICA BIBLICA E MATRIOSKE ---
@@ -62,7 +61,9 @@ def espandi_matrioska(brano):
     return res
 
 # --- 4. FUNZIONI DI RICERCA COMMENTI ---
+
 def cerca_villapizzone(brani_list, session):
+    """Questa è la versione che ha funzionato nel Lab Debug"""
     validi = []
     url = "https://www.gesuiti-villapizzone.it/sito/van.html"
     try:
@@ -70,6 +71,7 @@ def cerca_villapizzone(brani_list, session):
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, 'html.parser')
         links = soup.find_all('a')
+        
         for i, a in enumerate(links):
             testo = a.get_text().strip()
             if any(lib in testo for lib in ["Mt", "Mc", "Lc", "Gv"]):
@@ -79,15 +81,19 @@ def cerca_villapizzone(brani_list, session):
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
                             item = {"t": testo.replace("•", "").strip(), "audio": None, "pdf": None}
+                            # Il link sul testo stesso è l'audio
                             h = urllib.parse.urljoin(url, a['href'])
                             if h.lower().endswith('.mp3'): item["audio"] = h
+                            
+                            # Cerca l'icona rossa (PDF) nei 4 link successivi
                             for j in range(i+1, i+5):
                                 if j < len(links):
                                     h_next = urllib.parse.urljoin(url, links[j]['href'])
                                     if h_next.lower().endswith('.pdf') or 'trascrizioni' in h_next.lower():
                                         item["pdf"] = h_next
                                         break
-                            if item["audio"] or item["pdf"]: validi.append(item)
+                            if item["audio"] or item["pdf"]:
+                                validi.append(item)
                             break
     except: pass
     visti, finale = set(), []
@@ -156,19 +162,9 @@ def carica_db():
     try:
         doc = Document(nome_file)
         data = []
-        # Cerchiamo la prima tabella che abbia almeno 2 colonne
-        tabella_valida = None
-        for t in doc.tables:
-            if len(t.columns) >= 2:
-                tabella_valida = t
-                break
-        
-        if tabella_valida:
-            for row in tabella_valida.rows[1:]:
-                festa = row.cells[0].text.strip()
-                vangelo = row.cells[1].text.strip()
-                if festa and vangelo:
-                    data.append({"festa": festa, "vangelo": vangelo})
+        for row in doc.tables[0].rows[1:]:
+            if len(row.cells) >= 2:
+                data.append({"festa": row.cells[0].text.strip(), "vangelo": row.cells[1].text.strip()})
         return data
     except Exception as e:
         if os.path.exists(nome_file): 
@@ -196,14 +192,13 @@ with st.sidebar:
             if scarica_db():
                 st.success("Aggiornato!"); st.rerun()
             else: 
-                st.error("Impossibile scaricare da Dropbox.")
+                st.error("Impossibile scaricare.")
     
     url_anteprima = url_db.replace("&dl=1", "&dl=0")
     st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
-# Visualizzazione errore se il DB è vuoto
 if not db:
-    st.error("⚠️ Il database risulta vuoto o non leggibile. Prova a cliccare 'Aggiorna Database' a sinistra.")
+    st.error("⚠️ Il database è vuoto. Clicca su 'Aggiorna Database' a sinistra.")
 
 # --- 7. LOGICA DI RICERCA ---
 AUTORI_QUMRAN = {"Paolo Curtaz": 366, "Enzo Bianchi": 3, "Luigi Maria Epicoco": 1097}
@@ -244,10 +239,10 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
                 brano_id = feste[0]['vangelo']
             else:
                 try:
-                    resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Trova il brano evangelico per: '{testo_pulito}'. Rispondi solo con la citazione (es. Gv 4,5-42) o 'NULLA'.").text.strip()
+                    resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Trova il brano per: '{testo_pulito}'. Rispondi solo con la citazione (es. Gv 4,5-42) o 'NULLA'.").text.strip()
                     if any(p in resp.upper() for p in ["MT", "MC", "LC", "GV"]): brano_id = resp
                     else: st.error("Nessun brano trovato."); st.stop()
-                except: st.error("Errore comunicazione AI."); st.stop()
+                except: st.error("Errore AI."); st.stop()
 
     if brano_id:
         st.divider()
@@ -264,7 +259,7 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
             except: st.warning("Gemini occupato. Riprova.")
 
         with t2:
-            # --- LINK VIDEO CHIESA DI MILANO (Dinamico per "Oggi") ---
+            # --- LINK VIDEO CHIESA DI MILANO ---
             if st.session_state.get("is_oggi"):
                 url_p = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
                 st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_p})**")
@@ -272,7 +267,6 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
                 st.write("---")
 
             mappa_v = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
-            trovato = False
             for autore in sorted(list(set(list(AUTORI_QUMRAN.keys()) + list(AUTORI_VOLTO.keys())))):
                 res_q = []
                 if autore in AUTORI_QUMRAN:
@@ -281,7 +275,6 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
                         if verifica_qumran(u, session): res_q.append({"b": b, "u": u})
                 res_v = mappa_v.get(autore, [])
                 if res_q or res_v:
-                    trovato = True
                     with st.expander(f"👤 {autore}", expanded=True):
                         for r in res_q: st.write(f"✅ Qumran ({r['b']}): [Link]({r['u']})")
                         for r in res_v: st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})")
