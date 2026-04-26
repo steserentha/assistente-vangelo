@@ -13,7 +13,7 @@ st.set_page_config(page_title="Assistente Liturgico", page_icon="📖", layout="
 
 st.markdown("""
 <style>
-/* Migliora la leggibilità del testo e dei blocchi di codice su mobile */
+/* Applica lo stile solo al contenuto testuale per evitare di mostrare icone di sistema */
 .stMarkdown p, .stMarkdown li, .stMarkdown span, code, pre {
     white-space: pre-wrap !important;
     word-break: break-word !important;
@@ -21,10 +21,10 @@ st.markdown("""
     font-size: 1.1rem !important;
     font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
 }
-/* Evita scritte tecniche nella sidebar */
+/* Nasconde testi tecnici nelle icone della sidebar */
 [data-testid="stSidebarNav"] span { white-space: nowrap !important; }
-/* Spaziatura pulsanti sidebar */
-.stButton button { width: 100%; margin-bottom: 5px; }
+/* Pulsanti sidebar a tutta larghezza */
+div.stButton > button { width: 100% !important; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -32,7 +32,6 @@ st.markdown("""
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
-    # Utilizziamo la versione 2.5 Flash
     NOME_MODELLO = "gemini-2.5-flash" 
     session = requests.Session()
     session.headers.update({
@@ -139,13 +138,11 @@ def normalizza_liturgia(testo):
     return re.sub(r'\s+', ' ', t).strip()
 
 # --- 5. CARICAMENTO E GESTIONE DATABASE WORD ---
-# Utilizziamo il link Dropbox corretto per Liturgia-semplificata.docx
 url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=1"
 nome_file = "database_liturgico.docx"
 
 def scarica_db():
     try:
-        # Forziamo dl=1 per lo scaricamento
         r = requests.get(url_db, allow_redirects=True, timeout=15)
         if r.status_code == 200:
             with open(nome_file, 'wb') as f: f.write(r.content)
@@ -154,15 +151,26 @@ def scarica_db():
     return False
 
 def carica_db():
-    if not os.path.exists(nome_file): scarica_db()
+    if not os.path.exists(nome_file): 
+        scarica_db()
     try:
         doc = Document(nome_file)
         data = []
-        for row in doc.tables[0].rows[1:]:
-            if len(row.cells) >= 2:
-                data.append({"festa": row.cells[0].text.strip(), "vangelo": row.cells[1].text.strip()})
+        # Cerchiamo la prima tabella che abbia almeno 2 colonne
+        tabella_valida = None
+        for t in doc.tables:
+            if len(t.columns) >= 2:
+                tabella_valida = t
+                break
+        
+        if tabella_valida:
+            for row in tabella_valida.rows[1:]:
+                festa = row.cells[0].text.strip()
+                vangelo = row.cells[1].text.strip()
+                if festa and vangelo:
+                    data.append({"festa": festa, "vangelo": vangelo})
         return data
-    except:
+    except Exception as e:
         if os.path.exists(nome_file): 
             try: os.remove(nome_file)
             except: pass
@@ -188,15 +196,14 @@ with st.sidebar:
             if scarica_db():
                 st.success("Aggiornato!"); st.rerun()
             else: 
-                st.error("Link Dropbox non valido o scaduto.")
+                st.error("Impossibile scaricare da Dropbox.")
     
-    # Per la consultazione online usiamo dl=0
     url_anteprima = url_db.replace("&dl=1", "&dl=0")
     st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
 # Visualizzazione errore se il DB è vuoto
 if not db:
-    st.error("⚠️ Il database è vuoto. Controlla che il link Dropbox sia corretto.")
+    st.error("⚠️ Il database risulta vuoto o non leggibile. Prova a cliccare 'Aggiorna Database' a sinistra.")
 
 # --- 7. LOGICA DI RICERCA ---
 AUTORI_QUMRAN = {"Paolo Curtaz": 366, "Enzo Bianchi": 3, "Luigi Maria Epicoco": 1097}
@@ -240,7 +247,7 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
                     resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Trova il brano evangelico per: '{testo_pulito}'. Rispondi solo con la citazione (es. Gv 4,5-42) o 'NULLA'.").text.strip()
                     if any(p in resp.upper() for p in ["MT", "MC", "LC", "GV"]): brano_id = resp
                     else: st.error("Nessun brano trovato."); st.stop()
-                except: st.error("Errore AI."); st.stop()
+                except: st.error("Errore comunicazione AI."); st.stop()
 
     if brano_id:
         st.divider()
@@ -254,14 +261,14 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
             try:
                 res = client.models.generate_content(model=NOME_MODELLO, contents=f"Trascrivi il testo sacro di {brano_id}. Vai a capo dopo ogni versetto.")
                 st.markdown(f"```\n{res.text.replace('**','').strip()}\n```")
-            except: st.warning("Gemini non ha risposto. Riprova tra poco.")
+            except: st.warning("Gemini occupato. Riprova.")
 
         with t2:
             # --- LINK VIDEO CHIESA DI MILANO (Dinamico per "Oggi") ---
             if st.session_state.get("is_oggi"):
                 url_p = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
                 st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_p})**")
-                st.caption("Il link apre la lista: clicca sul primo video della playlist.")
+                st.caption("Il link apre la lista: clicca sul primo video.")
                 st.write("---")
 
             mappa_v = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
