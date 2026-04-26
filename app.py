@@ -140,7 +140,7 @@ def normalizza_liturgia(testo):
 
 # --- 5. CARICAMENTO E GESTIONE DATABASE WORD ---
 # ATTENZIONE: Sostituisci il link qui sotto con il tuo link reale di Dropbox se l'errore persiste
-url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=0"
+url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=1"
 nome_file = "database_liturgico.docx"
 
 def scarica_db():
