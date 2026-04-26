@@ -154,16 +154,16 @@ def cerca_barzillai_chirurgico(brani_list, session, max_pagine=60):
 
 def cerca_villapizzone(brani_list, session):
     validi = []
-    # Mappatura delle pagine per ogni Vangelo
+    # 1. Capiamo quale pagina caricare in base al Vangelo cercato
     mappa_pagine = {"Mt": "van.html", "Mc": "van_mc.html", "Lc": "van_lc.html", "Gv": "van_gv.html"}
     
-    # Capiamo quale Vangelo stiamo cercando dal primo brano della lista
     primo_brano = brani_list[0] if brani_list else ""
-    libro = "Mt" # default
-    if "Mc" in primo_brano: libro = "Mc"
-    elif "Lc" in primo_brano: libro = "Lc"
-    elif "Gv" in primo_brano: libro = "Gv"
-    
+    libro = "Mt"
+    for k in mappa_pagine.keys():
+        if k in primo_brano:
+            libro = k
+            break
+            
     url_base = "https://www.gesuiti-villapizzone.it/sito/"
     url_vangelo = f"{url_base}{mappa_pagine[libro]}"
     
@@ -172,34 +172,43 @@ def cerca_villapizzone(brani_list, session):
         res.encoding = 'utf-8'
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Cerchiamo tutti i link (a) perché a Villapizzone i titoli sono spesso linkati
+        # 2. Cerchiamo i link che contengono citazioni bibliche (es. "Gv 10, 7-21")
         for a_tag in soup.find_all('a'):
             testo_link = a_tag.get_text().strip()
+            
+            # Verifichiamo se il link parla del Vangelo giusto
             if libro in testo_link:
-                # Usiamo analizza_intervallo per capire se il brano nel link è quello giusto
                 ref_trovato = analizza_intervallo(testo_link)
                 if ref_trovato:
+                    # Confrontiamo con le nostre matrioske
                     for b_req in brani_list:
                         ref_req = analizza_intervallo(b_req)
                         if sono_sovrapposti(ref_req, ref_trovato):
-                            # Trovato! Ora cerchiamo audio e pdf nello stesso "blocco" (li o p)
+                            # TROVATO! Ora cerchiamo i file nel blocco genitore
                             parent = a_tag.find_parent(['li', 'p', 'td'])
                             res_item = {"t": testo_link, "audio": None, "pdf": None}
                             
-                            # Cerca tutti i link dentro il genitore per trovare .mp3 e .pdf
+                            # Estraiamo tutti i link dal "vicinato" del brano
                             for link in parent.find_all('a', href=True):
                                 h = urllib.parse.urljoin(url_vangelo, link['href'])
-                                if h.endswith('.mp3'): res_item["audio"] = h
-                                elif h.endswith('.pdf'): res_item["pdf"] = h
-                                # Se il link stesso è il titolo e punta a un mp3
-                                elif link.get_text().strip() == testo_link and h.endswith('.mp3'):
+                                if h.endswith('.mp3'):
                                     res_item["audio"] = h
+                                elif h.endswith('.pdf') or 'trascrizioni' in h:
+                                    res_item["pdf"] = h
                             
                             if res_item["audio"] or res_item["pdf"]:
                                 validi.append(res_item)
                             break
     except: pass
-    return validi
+    
+    # Pulizia duplicati
+    visti, finale = set(), []
+    for x in validi:
+        if x['t'] not in visti:
+            finale.append(x)
+            visti.add(x['t'])
+    return finale
+    
 # --- 4. INTERFACCIA UTENTE ---
 AUTORI_QUMRAN = {"Fabio Rosini": 944, "Luigi Epicoco": 948, "Cristiano Mauri": 919, "Angelo Casati": 941, "Paolo Curtaz": 827}
 AUTORI_VOLTO = {"Fabio Rosini": ["fabio rosini", "don fabio rosini"], "Luigi Epicoco": ["luigi maria epicoco", "don luigi maria epicoco"], "Enzo Bianchi": ["enzo bianchi"], "Cristiano Mauri": ["cristiano mauri"], "Paolo Curtaz": ["paolo curtaz"]}
