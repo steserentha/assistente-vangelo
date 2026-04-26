@@ -16,7 +16,7 @@ try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
     # Manteniamo il modello che preferisci
-    NOME_MODELLO = "gemini-2.5-flash"
+    NOME_MODELLO = "gemini-2.5-flash-lite"
     session = requests.Session()
     # User-Agent fondamentale per bypassare i blocchi di Villapizzone e Barzillai
     session.headers.update({
