@@ -139,7 +139,7 @@ def normalizza_liturgia(testo):
     return re.sub(r'\s+', ' ', t).strip()
 
 # --- 5. CARICAMENTO E GESTIONE DATABASE WORD ---
-# ATTENZIONE: Sostituisci il link qui sotto con il tuo link reale di Dropbox se l'errore persiste
+# Utilizziamo il link aggiornato fornito dall'utente per Liturgia-semplificata.docx
 url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=1"
 nome_file = "database_liturgico.docx"
 
@@ -189,12 +189,13 @@ with st.sidebar:
             else: 
                 st.error("Link Dropbox non valido o scaduto.")
     
+    # Per la consultazione online usiamo dl=0
     url_anteprima = url_db.replace("&dl=1", "&dl=0")
     st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
 # Visualizzazione errore se il DB è vuoto
 if not db:
-    st.error("⚠️ Il database è vuoto. Controlla che il link Dropbox alla riga 108 sia corretto.")
+    st.error("⚠️ Il database è vuoto. Controlla che il link Dropbox sia corretto.")
 
 # --- 7. LOGICA DI RICERCA ---
 AUTORI_QUMRAN = {"Paolo Curtaz": 366, "Enzo Bianchi": 3, "Luigi Maria Epicoco": 1097}
