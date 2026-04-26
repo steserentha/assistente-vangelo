@@ -238,6 +238,11 @@ with st.sidebar:
             with open(nome_file, 'wb') as f: f.write(r.content)
             st.success("Database aggiornato!")
             st.rerun()
+    
+    # --- NUOVO TASTO CONSULTA DATABASE ---
+    # Creiamo il link di anteprima sostituendo dl=1 con dl=0
+    url_anteprima = url_db.replace("dl=1", "dl=0")
+    st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
 # La ricerca parte se premiamo Cerca, Oggi, o se un bottone ha impostato la ricerca automatica
 if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching")) or st.session_state.get("vai_alla_ricerca"):
