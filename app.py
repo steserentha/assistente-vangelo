@@ -21,12 +21,10 @@ st.markdown("""
     font-size: 1.1rem !important;
     font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
 }
-/* Stile per i pulsanti di ricerca in riga */
-.stButton button {
-    width: 100%;
-}
 /* Evita scritte tecniche nella sidebar */
 [data-testid="stSidebarNav"] span { white-space: nowrap !important; }
+/* Spaziatura pulsanti sidebar */
+.stButton button { width: 100%; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -34,6 +32,7 @@ st.markdown("""
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
+    # Utilizziamo la versione 2.5 Flash
     NOME_MODELLO = "gemini-2.5-flash" 
     session = requests.Session()
     session.headers.update({
@@ -140,15 +139,18 @@ def normalizza_liturgia(testo):
     return re.sub(r'\s+', ' ', t).strip()
 
 # --- 5. CARICAMENTO E GESTIONE DATABASE WORD ---
-url_db = "https://www.dropbox.com/scl/fi/v6t6gaj7m0vuxu7v6v69y/corrispondenze_liturgiche.docx?rlkey=f7v7v7v7v7v7v7v7v&dl=1"
+# ATTENZIONE: Sostituisci il link qui sotto con il tuo link reale di Dropbox se l'errore persiste
+url_db = "https://www.dropbox.com/scl/fi/5gy6cpa4ve481m09519tb/Liturgia-semplificata.docx?rlkey=hs0wsu76p04nxuj9mwtim5yv2&st=4rlqcpnp&dl=0"
 nome_file = "database_liturgico.docx"
 
 def scarica_db():
     try:
         r = requests.get(url_db, allow_redirects=True, timeout=15)
-        with open(nome_file, 'wb') as f: f.write(r.content)
-        return True
-    except: return False
+        if r.status_code == 200:
+            with open(nome_file, 'wb') as f: f.write(r.content)
+            return True
+    except: pass
+    return False
 
 def carica_db():
     if not os.path.exists(nome_file): scarica_db()
@@ -160,39 +162,39 @@ def carica_db():
                 data.append({"festa": row.cells[0].text.strip(), "vangelo": row.cells[1].text.strip()})
         return data
     except:
-        if os.path.exists(nome_file): os.remove(nome_file) # Rimuove se corrotto
+        if os.path.exists(nome_file): 
+            try: os.remove(nome_file)
+            except: pass
         return []
 
 db = carica_db()
 
-# --- 6. INTERFACCIA UTENTE ---
+# --- 6. INTERFACCIA UTENTE (SIDEBAR) ---
 st.title("📖 Assistente Vangelo")
 
-# Spostiamo la ricerca nell'area principale (in alto)
-with st.container():
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        txt_input = st.text_input("Inserisci Festa (es. 30a TO B) o Brano:", key="input_ricerca", label_visibility="collapsed", placeholder="Inserisci Festa o Brano...")
-    with c2:
-        col_b1, col_b2 = st.columns(2)
-        with col_b1: btn_cerca = st.button("🔍 Cerca")
-        with col_b2: btn_oggi = st.button("📅 Oggi")
-
-# Sidebar solo per gestione tecnica
 with st.sidebar:
+    st.header("🔍 Ricerca")
+    txt_input = st.text_input("Festa o Brano:", key="input_ricerca", placeholder="es. 30a TO B")
+    
+    col_b1, col_b2 = st.columns(2)
+    with col_b1: btn_cerca = st.button("🔍 Cerca")
+    with col_b2: btn_oggi = st.button("📅 Oggi")
+    
+    st.divider()
     st.write("📊 **Gestione Database**")
     if st.button("🔄 Aggiorna Database", use_container_width=True):
-        with st.spinner("Aggiornamento..."):
+        with st.spinner("Scaricando..."):
             if scarica_db():
                 st.success("Aggiornato!"); st.rerun()
-            else: st.error("Errore download.")
+            else: 
+                st.error("Link Dropbox non valido o scaduto.")
     
     url_anteprima = url_db.replace("&dl=1", "&dl=0")
     st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
 # Visualizzazione errore se il DB è vuoto
 if not db:
-    st.error("⚠️ Errore nel caricamento del Database. Controlla la connessione o clicca 'Aggiorna Database' a sinistra.")
+    st.error("⚠️ Il database è vuoto. Controlla che il link Dropbox alla riga 108 sia corretto.")
 
 # --- 7. LOGICA DI RICERCA ---
 AUTORI_QUMRAN = {"Paolo Curtaz": 366, "Enzo Bianchi": 3, "Luigi Maria Epicoco": 1097}
@@ -224,7 +226,7 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
             if match_esatto: feste = match_esatto
 
             if len({f['vangelo'] for f in feste}) > 1:
-                st.warning("⚠️ Ambiguità trovata. Specifica meglio:")
+                st.warning("⚠️ Troppe corrispondenze:")
                 for f in feste:
                     st.button(f['festa'], key=f"btn_{f['festa']}", 
                               on_click=lambda n=f['festa']: st.session_state.update({"testo_ricerca": n, "vai_alla_ricerca": True}))
@@ -233,10 +235,10 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
                 brano_id = feste[0]['vangelo']
             else:
                 try:
-                    resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Trova il brano evangelico per il tema: '{testo_pulito}'. Rispondi solo con la citazione (es. Gv 4,5-42) o 'NULLA'.").text.strip()
+                    resp = client.models.generate_content(model=NOME_MODELLO, contents=f"Trova il brano evangelico per: '{testo_pulito}'. Rispondi solo con la citazione (es. Gv 4,5-42) o 'NULLA'.").text.strip()
                     if any(p in resp.upper() for p in ["MT", "MC", "LC", "GV"]): brano_id = resp
                     else: st.error("Nessun brano trovato."); st.stop()
-                except: st.error("Errore di connessione."); st.stop()
+                except: st.error("Errore AI."); st.stop()
 
     if brano_id:
         st.divider()
@@ -250,13 +252,13 @@ if btn_cerca or btn_oggi or st.session_state.get("vai_alla_ricerca"):
             try:
                 res = client.models.generate_content(model=NOME_MODELLO, contents=f"Trascrivi il testo sacro di {brano_id}. Vai a capo dopo ogni versetto.")
                 st.markdown(f"```\n{res.text.replace('**','').strip()}\n```")
-            except: st.warning("Trascrizione temporaneamente occupata. Riprova.")
+            except: st.warning("Gemini non ha risposto. Riprova tra poco.")
 
         with t2:
             if st.session_state.get("is_oggi"):
                 url_p = "https://www.youtube.com/playlist?list=PLv-N1jjgsWgqThUFZ4oAooM8nbd25QMgj"
                 st.markdown(f"📺 **[Guarda il Commento Video di oggi (Chiesa di Milano)]({url_p})**")
-                st.caption("Il link apre la lista: clicca sul primo video.")
+                st.caption("Clicca sul primo video della playlist.")
                 st.write("---")
 
             mappa_v = ricerca_collettiva_volto(brani_c, AUTORI_VOLTO, session)
