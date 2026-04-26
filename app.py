@@ -27,23 +27,36 @@ except Exception as e:
     st.error("Configurazione API Key mancante nei Secrets di Streamlit.")
     st.stop()
 
-# --- CSS PER ANDARE A CAPO SU SMARTPHONE ---
+# --- CSS PER ANDARE A CAPO E PULIZIA UI ---
 st.markdown("""
 <style>
-/* Uniforma dimensione, a capo e font per ogni elemento di testo */
-.stMarkdown, .stText, code, pre, p, span, div {
+/* Applichiamo il font solo al contenuto vero e proprio, non agli elementi di sistema Streamlit */
+.stMarkdown p, .stMarkdown li, code, pre, .stText {
     white-space: pre-wrap !important;
     word-break: break-word !important;
     overflow-wrap: break-word !important;
     font-size: 1.1rem !important;
     font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
-    font-weight: normal !important;
 }
 
-/* Rimuove i margini extra dei blocchi di codice che possono sfalsare la visualizzazione */
+/* Nasconde le etichette tecniche che appaiono al posto delle icone (es. board_double_arrow) */
+[data-testid="stSidebarNav"] span, button span p {
+    font-family: inherit !important;
+}
+
+/* Rimuove i margini extra dei blocchi di codice */
 code, pre {
     padding: 0 !important;
     background-color: transparent !important;
+}
+
+/* Uniforma i pulsanti del database nella sidebar */
+div.stButton > button {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -162,7 +175,7 @@ def cerca_barzillai_chirurgico(brani_list, session, ref_originale, max_pagine=60
     return validi
 
 def cerca_villapizzone(brani_list, session, ref_originale):
-    """Versione sbloccata che scansiona correttamente la pagina van.html con filtro chirurgico."""
+    """Versione sbloccata con filtro chirurgico sui versetti richiesti."""
     validi = []
     url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
     try:
@@ -179,7 +192,7 @@ def cerca_villapizzone(brani_list, session, ref_originale):
             if any(lib in testo for lib in ["Mt", "Mc", "Lc", "Gv"]):
                 ref_trovato = analizza_intervallo(testo)
                 if ref_trovato:
-                    # Filtro chirurgico: il risultato deve sovrapporsi alla richiesta originale
+                    # Filtro chirurgico: il risultato deve sovrapporsi alla richiesta originale dell'utente
                     if not sono_sovrapposti(ref_originale, ref_trovato):
                         continue
                         
@@ -229,6 +242,7 @@ btn_oggi = col2.button("📅 Oggi")
 
 with st.sidebar:
     st.divider()
+    # Tasto Aggiorna con emoji integrata
     if st.button("🔄 Aggiorna Database"):
         with st.spinner("Scaricando nuova versione..."):
             r = requests.get(url_db, allow_redirects=True)
@@ -236,6 +250,7 @@ with st.sidebar:
             st.success("Database aggiornato!")
             st.rerun()
     
+    # Tasto Consulta con emoji integrata e allineamento CSS
     url_anteprima = url_db.replace("dl=1", "dl=0")
     st.link_button("📂 Consulta Database", url_anteprima, use_container_width=True)
 
