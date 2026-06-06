@@ -91,17 +91,14 @@ def ispeziona_e_verifica_qumran(url, session):
         
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Inizializziamo i flag per una raccolta cumulativa globale dei risultati dell'autore
         ha_audio = False
         ha_video = False
         ha_testo = False
         
-        # Estraiamo tutti i tag che contengono l'elenco dei commenti eliminando i menu in alto
         for tag in soup.find_all(['span', 'img', 'a', 'td', 'div']):
             tag_html = str(tag).lower()
             tag_text = tag.get_text().lower()
             
-            # Verifichiamo la presenza di indicatori specifici di Qumran (classi, icone alt o testo)
             if "bollino_video" in tag_html or "alt=\"video\"" in tag_html or "commento video" in tag_text or "video." in tag_html:
                 ha_video = True
             if "bollino_audio" in tag_html or "alt=\"audio\"" in tag_html or "commento audio" in tag_text or "audio." in tag_html or ".mp3" in tag_html:
@@ -109,7 +106,6 @@ def ispeziona_e_verifica_qumran(url, session):
             if "bollino_testo" in tag_html or "alt=\"testo\"" in tag_html or "commento testuale" in tag_text or "testo" in tag_html:
                 ha_testo = True
 
-        # Fallback di sicurezza basato sulle stringhe grezze se la pagina contiene elementi globali noti
         if "bollino_video" in html_low or "commento video" in html_low:
             ha_video = True
         if "bollino_audio" in html_low or "commento audio" in html_low:
@@ -118,7 +114,6 @@ def ispeziona_e_verifica_qumran(url, session):
             ha_testo = True
 
         tipi = []
-        # Se c'è un bollino testo, o se la pagina esiste ma non contiene né audio né video, allora c'è del testo
         if ha_testo or (not ha_audio and not ha_video):
             tipi.append("📄 Testo")
         if ha_audio:
@@ -126,7 +121,6 @@ def ispeziona_e_verifica_qumran(url, session):
         if ha_video:
             tipi.append("📺 Video")
             
-        # Se per qualsiasi motivo l'elenco dei tipi è vuoto, garantiamo un valore predefinito sicuro
         if not tipi:
             tipi.append("📄 Testo")
             
@@ -180,7 +174,7 @@ def verifica_tag_volto(url, brano, session):
         return brano.lower().replace(",", "") in res.text.lower().replace(",", "")
     except: return False
 
-def recherche_collettiva_volto(brani_list, autori_volto, session):
+def ricerca_collettiva_volto(brani_list, autori_volto, session):
     risultati = {}
     for b in brani_list:
         tag = b.lower().replace(" ", "-").replace(",", "-").replace(":", "-").replace("–", "-")
@@ -391,7 +385,7 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
             
             with t1:
                 st.markdown("### Testo del Vangelo")
-                p_bib = f"Trascrivi INTEGRALMENTE il testo sacro della Bible per la citazione: {brano_id}. REGOLE OBBLIGATORIE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. NON aggiungere commenti, introduzioni o conclusioni."
+                p_bib = f"Trascrivi INTEGRALMENTE il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE OBBLIGATORIE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. NON aggiungere commenti, introduzioni o conclusioni."
                 try:
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
                     if risposta and hasattr(risposta, 'text') and risposta.text:
