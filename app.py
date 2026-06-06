@@ -81,12 +81,41 @@ def analizza_tipo_contenuto_url(url, session):
     return " + ".join(tipi)
 
 def ispeziona_e_verifica_qumran(url, session):
-    """Verifica Qumran con la logica base stabile originale."""
+    """Verifica Qumran analizzando le classi span reali (commento_tipo_video/audio/testo)."""
     try:
         res = session.get(url, timeout=7)
         if any(x in res.text.lower() for x in ["nessun commento", "nessun risultato", "0 documenti trovati"]):
             return False, ""
-        return True, "📄 Testo"
+        
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        ha_audio = False
+        ha_video = False
+        ha_testo = False
+        
+        # Cerchiamo gli elementi span che hanno le classi reali dei bollini di Qumran
+        for span in soup.find_all('span', class_=True):
+            classi = span.get('class', [])
+            if 'commento_tipo_video' in classi:
+                ha_video = True
+            if 'commento_tipo_audio' in classi:
+                ha_audio = True
+            if 'commento_tipo_testo' in classi or 'commento_tipo_testuale' in classi:
+                ha_testo = True
+
+        tipi = []
+        # Combiniamo i risultati trovati
+        if ha_testo or (not ha_audio and not ha_video):
+            tipi.append("📄 Testo")
+        if ha_audio:
+            tipi.append("🔊 Audio")
+        if ha_video:
+            tipi.append("📺 Video")
+            
+        if not tipi:
+            tipi.append("📄 Testo")
+            
+        return True, " + ".join(tipi)
     except: 
         return False, ""
 
@@ -115,7 +144,7 @@ def normalizza_liturgia(testo):
 
 def analizza_intervallo(riferimento):
     try:
-        s = reference = riferimento.replace(" ", "").replace("–", "-").replace("—", "-")
+        s = riferimento.replace(" ", "").replace("–", "-").replace("—", "-")
         m = re.search(r'(Mt|Mc|Lc|Gv)(\d+),(\d+)(?:-(?:(\d+),)?(\d+))?', s, re.IGNORECASE)
         if m:
             lib = m.group(1).capitalize()
