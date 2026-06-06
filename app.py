@@ -81,7 +81,7 @@ def analizza_tipo_contenuto_url(url, session):
     return " + ".join(tipi)
 
 def ispeziona_e_verifica_qumran(url, session):
-    """Verifica Qumran analizzando in modo cumulativo la presenza di qualsiasi tipologia di file nell'elenco."""
+    """Verifica Qumran intercettando i nomi reali delle immagini dei bollini (b_video, b_audio) per evitare errori."""
     try:
         res = session.get(url, timeout=7)
         html_low = res.text.lower()
@@ -94,36 +94,37 @@ def ispeziona_e_verifica_qumran(url, session):
         ha_audio = False
         ha_video = False
         ha_testo = False
-        ha_risultati_reali = False
+        ha_risultati = False
         
-        # Analizziamo in modo cumulativo tutti i tag significativi della pagina dei risultati
-        for tag in soup.find_all(['p', 'td', 'span', 'dt', 'dd', 'li', 'img', 'a']):
-            tag_html = str(tag).lower()
-            tag_text = tag.get_text().lower()
+        # Analizziamo tutte le immagini (img) e i link (a) presenti nella pagina dei risultati
+        for tag in soup.find_all(['img', 'a', 'td', 'span']):
+            tag_str = str(tag).lower()
             
-            # Ci concentriamo solo sui nodi che appartengono all'area dell'elenco dei commenti
-            if any(k in tag_html for k in ["vangelo:", "inserito il", "commento", "bollino"]):
-                ha_risultati_reali = True
-                if "bollino_video" in tag_html or "alt=\"video\"" in tag_html or "commento video" in tag_text or "video." in tag_html:
+            # Verifichiamo se l'elemento fa parte della lista dei risultati reali
+            if any(k in tag_str for k in ["vangelo:", "inserito il", "commenti", "bollino", "b_"]):
+                ha_risultati = True
+                # Intercettiamo i file GIF dei bollini originali di Qumran
+                if "b_video" in tag_str or "alt=\"video\"" in tag_str or "video" in tag_str:
                     ha_video = True
-                if "bollino_audio" in tag_html or "alt=\"audio\"" in tag_html or "commento audio" in tag_text or "audio." in tag_html or ".mp3" in tag_html:
+                if "b_audio" in tag_str or "alt=\"audio\"" in tag_str or ".mp3" in tag_str:
                     ha_audio = True
-                if "bollino_testo" in tag_html or "alt=\"testo\"" in tag_html or "commento testuale" in tag_text:
+                if "b_testo" in tag_str or "alt=\"testo\"" in tag_str:
                     ha_testo = True
 
-        # Ulteriore controllo di sicurezza globale sulle stringhe grezze dell'HTML (escludendo le intestazioni fisse)
-        corpo_risultati = html_low.replace('presentazioni', '').replace('ritagli', '')
-        if "bollino_video" in corpo_risultati or "commento video" in corpo_risultati:
+        # Controllo di sicurezza finale sull'HTML grezzo escludendo le parole dei menu
+        html_pulito = html_low.replace('presentazioni', '').replace('ritagli', '').replace('aiutaci', '')
+        if "b_video" in html_pulito or "bollino_video" in html_pulito:
             ha_video = True
-        if "bollino_audio" in corpo_risultati or "commento audio" in corpo_risultati:
+        if "b_audio" in html_pulito or "bollino_audio" in html_pulito:
             ha_audio = True
-        if "bollino_testo" in corpo_risultati:
+        if "b_testo" in html_pulito or "bollino_testo" in html_pulito:
             ha_testo = True
 
-        if not ha_risultati_reali and not ha_audio and not ha_video and not ha_testo:
+        if not ha_risultati and not ha_audio and not ha_video:
             return False, ""
 
         tipi = []
+        # Se trova il bollino testo o se non trova né audio né video, assegna testo
         if ha_testo or (not ha_audio and not ha_video):
             tipi.append("📄 Testo")
         if ha_audio:
