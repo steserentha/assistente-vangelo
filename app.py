@@ -62,22 +62,59 @@ code, pre {
 
 # --- 3. FUNZIONI LOGICHE DI ISPEZIONE CONTENUTI ---
 def analizza_tipo_contenuto_url(url, session):
-    """Ispeziona la pagina di destinazione per rilevare la presenza di Audio o Video."""
+    """Ispeziona la pagina di destinazione per rilevare la presenza di Audio o Video (IlVolto / Nella Parola)."""
     tipi = ["📄 Testo"]
     try:
+        # Se è un link di nellaparola, evitiamo la richiesta HTTP pesante poiché usa hashtag dinamici
+        if "nellaparola.it" in url:
+            return "📄 Testo"
+            
         res = session.get(url, timeout=5)
         html_low = res.text.lower()
         
-        # Rilevamento Video (Youtube, tag video o player vimeo)
+        # Cerca video incorporati o player
         if "youtube.com/embed/" in html_low or "youtu.be/" in html_low or "<video" in html_low or "vimeo.com" in html_low:
             tipi.append("📺 Video")
             
-        # Rilevamento Audio (file mp3 linkati o tag audio)
+        # Cerca tracce audio o file mp3 espliciti
         if ".mp3" in html_low or "<audio" in html_low or "soundcloud.com" in html_low:
             tipi.append("🔊 Audio")
     except:
         pass
     return " + ".join(tipi)
+
+def ispeziona_e_verifica_qumran(url, session):
+    """Verifica Qumran analizzando solo la lista dei risultati per evitare i falsi positivi del menu principale."""
+    try:
+        res = session.get(url, timeout=7)
+        if any(x in res.text for x in ["Nessun commento", "Nessun risultato", "0 documenti trovati"]):
+            return False, ""
+        
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # Troviamo tutti i blocchi di testo o tabelle che contengono i risultati effettivi
+        # (Escludiamo i link della barra di navigazione in alto)
+        html_corpo = ""
+        for blocco in soup.find_all(['p', 'td', 'span']):
+            # Prendiamo solo gli elementi associati ai commenti (evitando le scritte del menu fisso in alto)
+            testo_b = blocco.get_text().lower()
+            if "vangelo:" in testo_b or "inserito il" in testo_b:
+                html_corpo += str(blocco).lower()
+
+        # Se non abbiamo isolato bene il corpo, usiamo tutto ma pulendo le parole chiave del menu in alto
+        if not html_corpo:
+            html_corpo = res.text.lower().replace('presentazioni', '').replace('ritagli', '')
+
+        tipi = ["📄 Testo"]
+        # Controlliamo se nel corpo dei risultati appaiono riferimenti reali ad audio o video
+        if ".mp3" in html_corpo or "commenti audio" in html_corpo or "🔊" in html_corpo:
+            tipi.append("🔊 Audio")
+        if "commenti video" in html_corpo or "youtube" in html_corpo or "📺" in html_corpo:
+            tipi.append("📺 Video")
+            
+        return True, " + ".join(tipi)
+    except: 
+        return False, ""
 
 def normalizza_liturgia(testo):
     t = testo.lower().strip()
@@ -119,24 +156,6 @@ def sono_sovrapposti(r1, r2):
     if not r1 or not r2 or r1[0] != r2[0]: return False
     return r1[1] <= r2[2] and r2[1] <= r1[2]
 
-def ispeziona_e_verifica_qumran(url, session):
-    """Verifica Qumran ed estrae i tipi di file contenuti nella pagina."""
-    try:
-        res = session.get(url, timeout=7)
-        if any(x in res.text for x in ["Nessun commento", "Nessun risultato", "0 documenti trovati"]):
-            return False, ""
-        
-        # Ispezione tipi su Qumran
-        tipi = ["📄 Testo"]
-        html_low = res.text.lower()
-        if ".mp3" in html_low or "audio" in html_low:
-            tipi.append("🔊 Audio")
-        if "video" in html_low or "youtube" in html_low:
-            tipi.append("📺 Video")
-        return True, " + ".join(tipi)
-    except: 
-        return False, ""
-
 def verifica_tag_volto(url, brano, session):
     try:
         res = session.get(url, timeout=7)
@@ -161,7 +180,6 @@ def ricerca_collettiva_volto(brani_list, autori_volto, session):
                             if any(n in txt.lower() for n in nomi):
                                 if verifica_tag_volto(u, b, session):
                                     if autore not in risultati: risultati[autore] = []
-                                    # Ispezione dinamica della pagina finale de IlVolto
                                     tipo_rilevato = analizza_tipo_contenuto_url(u, session)
                                     risultati[autore].append({"t": txt, "u": u, "b": b, "tipo": tipo_rilevato})
             except: break
@@ -355,12 +373,13 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
             
             with t1:
                 st.markdown("### Testo del Vangelo")
-                p_bib = f"Trascrivi INTEGRALMENTE il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. NON aggiungere commenti, introduzioni o conclusioni."
+                p_bib = f"Trascrivi INTEGRALMENTE il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE OBBLIGATORIE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. NON aggiungere commenti, introduzioni o conclusioni."
                 try:
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
                     if risposta and hasattr(risposta, 'text') and risposta.text:
                         testo_finale = risposta.text.replace('**','').strip()
-                        st.markdown(f"```\n{testo_finale}\n```")
+                        st.markdown(f"```\n{testo_finale}\n
+```")
                     else:
                         st.warning("⚠️ Gemini non ha risposto. Riprova.")
                 except Exception as e:
@@ -387,7 +406,6 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
                     if res_q or res_v:
                         trovato_a = True
                         with st.expander(f"👤 {autore}", expanded=True):
-                            # Mostriamo i bollini rilevati dinamicamente per Qumran e IlVolto
                             for r in res_q: st.write(f"✅ Qumran ({r['b']}) — **[{r['tipo']}]**: [Link]({r['u']})")
                             for r in res_v: st.write(f"✅ IlVolto ({r['b']}) — **[{r['tipo']}]**: [{r['t']}]({r['u']})")
                 
@@ -400,7 +418,9 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
                     b_senza_spazi = b_pulito.replace(" ", "")
                     b_finale = re.sub(r'^([A-Z][a-z]?)(\d)', r'\1 \2', b_senza_spazi)
                     url_np = f"https://nellaparola.it/commenti#s={quote(b_finale)}"
-                    st.markdown(f"👉 **[Commenti su {b_finale}]({url_np})**")
+                    # Integrazione bollini anche per la sezione "Nella Parola"
+                    tipo_np = analizza_tipo_contenuto_url(url_np, session)
+                    st.markdown(f"👉 **[Commenti su {b_finale}]({url_np})** — **[{tipo_np}]**")
 
             with t3:
                 st.markdown("### Don Romeo Cavedo (104 pagine)")
