@@ -81,26 +81,36 @@ def analizza_tipo_contenuto_url(url, session):
     return " + ".join(tipi)
 
 def ispeziona_e_verifica_qumran(url, session):
-    """Verifica Qumran analizzando solo la lista dei risultati per evitare i falsi positivi del menu principale."""
+    """Verifica Qumran analizzando i singoli blocchi di risultati ed intercettando i tag reali di Audio e Video."""
     try:
         res = session.get(url, timeout=7)
         if any(x in res.text for x in ["Nessun commento", "Nessun risultato", "0 documenti trovati"]):
             return False, ""
         
         soup = BeautifulSoup(res.text, 'html.parser')
-        html_corpo = ""
-        for blocco in soup.find_all(['p', 'td', 'span']):
-            testo_b = blocco.get_text().lower()
-            if "vangelo:" in testo_b or "inserito il" in testo_b:
-                html_corpo += str(blocco).lower()
-
-        if not html_corpo:
-            html_corpo = res.text.lower().replace('presentazioni', '').replace('ritagli', '')
+        
+        # Cerchiamo l'area dei risultati escludendo esplicitamente le barre dei menu
+        audio_trovato = False
+        video_trovato = False
+        
+        # Analizziamo gli elementi della lista dei risultati o le tabelle dei commenti
+        esiti = soup.find_all(['dt', 'dd', 'li', 'td', 'p'])
+        for elemento in esiti:
+            testo_el = elemento.get_text().lower()
+            html_el = str(elemento).lower()
+            
+            # Ci concentriamo solo sulle righe dei singoli commenti dell'autore
+            if "vangelo:" in testo_el or "inserito il" in testo_el or "visualizza" in testo_el:
+                # Controlla la presenza di tag o immagini che indicano Audio/Video (es. icone o scritte specifiche di Qumran)
+                if "commento audio" in html_el or "audio." in html_el or "alt=\"audio\"" in html_el or "bollino_audio" in html_el:
+                    audio_trovato = True
+                if "commento video" in html_el or "video." in html_el or "alt=\"video\"" in html_el or "bollino_video" in html_el or "youtube" in html_el:
+                    video_trovato = True
 
         tipi = ["📄 Testo"]
-        if ".mp3" in html_corpo or "commenti audio" in html_corpo or "🔊" in html_corpo:
+        if audio_trovato or "b_audio" in res.text.lower():
             tipi.append("🔊 Audio")
-        if "commenti video" in html_corpo or "youtube" in html_corpo or "📺" in html_corpo:
+        if video_trovato or "b_video" in res.text.lower():
             tipi.append("📺 Video")
             
         return True, " + ".join(tipi)
@@ -288,6 +298,12 @@ with st.sidebar:
     
     url_anteprima = url_db.replace("dl=1", "dl=0")
     st.link_button("📂 Consulta Database", url_anteprima)
+
+# Controllo se il database è presente
+database_caricato = True
+if not os.path.exists(nome_file):
+    database_caricato = False
+    st.warning("⚠️ Il database risulta vuoto o non ancora scaricato. Clicca su 'Aggiorna Database' nella barra laterale di sinistra per sincronizzarlo.")
 
 if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching")) or st.session_state.get("vai_alla_ricerca"):
     if "vai_alla_ricerca" in st.session_state:
