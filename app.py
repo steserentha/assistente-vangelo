@@ -81,12 +81,10 @@ def analizza_tipo_contenuto_url(url, session):
     return " + ".join(tipi)
 
 def ispeziona_e_verifica_qumran(url, session):
-    """Verifica Qumran intercettando i nomi reali delle immagini dei bollini (b_video, b_audio) per evitare errori."""
+    """Verifica Qumran analizzando unicamente i file grafici dei bollini originali (b_video.gif, b_audio.gif, b_testo.gif)."""
     try:
         res = session.get(url, timeout=7)
-        html_low = res.text.lower()
-        
-        if any(x in html_low for x in ["nessun commento", "nessun risultato", "0 documenti trovati"]):
+        if any(x in res.text.lower() for x in ["nessun commento", "nessun risultato", "0 documenti trovati"]):
             return False, ""
         
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -94,37 +92,36 @@ def ispeziona_e_verifica_qumran(url, session):
         ha_audio = False
         ha_video = False
         ha_testo = False
-        ha_risultati = False
+        ha_risultati_reali = False
         
-        # Analizziamo tutte le immagini (img) e i link (a) presenti nella pagina dei risultati
-        for tag in soup.find_all(['img', 'a', 'td', 'span']):
-            tag_str = str(tag).lower()
+        # Cerchiamo tutte le immagini caricate nella pagina dei risultati
+        for img in soup.find_all('img'):
+            src = img.get('src', '').lower()
+            alt = img.get('alt', '').lower()
             
-            # Verifichiamo se l'elemento fa parte della lista dei risultati reali
-            if any(k in tag_str for k in ["vangelo:", "inserito il", "commenti", "bollino", "b_"]):
-                ha_risultati = True
-                # Intercettiamo i file GIF dei bollini originali di Qumran
-                if "b_video" in tag_str or "alt=\"video\"" in tag_str or "video" in tag_str:
-                    ha_video = True
-                if "b_audio" in tag_str or "alt=\"audio\"" in tag_str or ".mp3" in tag_str:
-                    ha_audio = True
-                if "b_testo" in tag_str or "alt=\"testo\"" in tag_str:
-                    ha_testo = True
+            # Verifichiamo se l'immagine corrisponde esattamente ai bollini di tipo di Qumran
+            if "b_video" in src or alt == "video":
+                ha_video = True
+                ha_risultati_reali = True
+            elif "b_audio" in src or alt == "audio":
+                ha_audio = True
+                ha_risultati_reali = True
+            elif "b_testo" in src or alt == "testo" or "b_comm" in src:
+                ha_testo = True
+                ha_risultati_reali = True
 
-        # Controllo di sicurezza finale sull'HTML grezzo escludendo le parole dei menu
-        html_pulito = html_low.replace('presentazioni', '').replace('ritagli', '').replace('aiutaci', '')
-        if "b_video" in html_pulito or "bollino_video" in html_pulito:
-            ha_video = True
-        if "b_audio" in html_pulito or "bollino_audio" in html_pulito:
-            ha_audio = True
-        if "b_testo" in html_pulito or "bollino_testo" in html_pulito:
-            ha_testo = True
-
-        if not ha_risultati and not ha_audio and not ha_video:
-            return False, ""
+        # Se l'analisi delle immagini non ha prodotto risultati, facciamo un controllo sulle stringhe dei file immagine nell'HTML
+        if not ha_risultati_reali:
+            # Controllo se i file immagine dei bollini sono menzionati nel codice della pagina
+            if "b_video.gif" in res.text or "b_video.png" in res.text:
+                ha_video = True
+            if "b_audio.gif" in res.text or "b_audio.png" in res.text:
+                ha_audio = True
+            if "b_testo.gif" in res.text or "b_testo.png" in res.text:
+                ha_testo = True
 
         tipi = []
-        # Se trova il bollino testo o se non trova né audio né video, assegna testo
+        # Costruiamo l'etichetta combinata
         if ha_testo or (not ha_audio and not ha_video):
             tipi.append("📄 Testo")
         if ha_audio:
@@ -203,7 +200,9 @@ def ricerca_collettiva_volto(brani_list, autori_volto, session):
                             if any(n in txt.lower() for n in nomi):
                                 if verifica_tag_volto(u, b, session):
                                     if autore not in risultati: risultati[autore] = []
-                                    tipo_rilevato = analizza_tipo_contenuto_url(u, session)
+                                    tipo_rilevato = analizza_tipo_contents_url(u, session)
+                                    if not tipo_rilevato:
+                                        tipo_rilevato = analizza_tipo_contenuto_url(u, session)
                                     risultati[autore].append({"t": txt, "u": u, "b": b, "tipo": tipo_rilevato})
             except: break
     return risultati
