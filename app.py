@@ -81,58 +81,12 @@ def analizza_tipo_contenuto_url(url, session):
     return " + ".join(tipi)
 
 def ispeziona_e_verifica_qumran(url, session):
-    """Verifica Qumran analizzando unicamente i file grafici dei bollini originali (b_video.gif, b_audio.gif, b_testo.gif)."""
+    """Verifica Qumran con la logica base stabile originale."""
     try:
         res = session.get(url, timeout=7)
         if any(x in res.text.lower() for x in ["nessun commento", "nessun risultato", "0 documenti trovati"]):
             return False, ""
-        
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        ha_audio = False
-        ha_video = False
-        ha_testo = False
-        ha_risultati_reali = False
-        
-        # Cerchiamo tutte le immagini caricate nella pagina dei risultati
-        for img in soup.find_all('img'):
-            src = img.get('src', '').lower()
-            alt = img.get('alt', '').lower()
-            
-            # Verifichiamo se l'immagine corrisponde esattamente ai bollini di tipo di Qumran
-            if "b_video" in src or alt == "video":
-                ha_video = True
-                ha_risultati_reali = True
-            elif "b_audio" in src or alt == "audio":
-                ha_audio = True
-                ha_risultati_reali = True
-            elif "b_testo" in src or alt == "testo" or "b_comm" in src:
-                ha_testo = True
-                ha_risultati_reali = True
-
-        # Se l'analisi delle immagini non ha prodotto risultati, facciamo un controllo sulle stringhe dei file immagine nell'HTML
-        if not ha_risultati_reali:
-            # Controllo se i file immagine dei bollini sono menzionati nel codice della pagina
-            if "b_video.gif" in res.text or "b_video.png" in res.text:
-                ha_video = True
-            if "b_audio.gif" in res.text or "b_audio.png" in res.text:
-                ha_audio = True
-            if "b_testo.gif" in res.text or "b_testo.png" in res.text:
-                ha_testo = True
-
-        tipi = []
-        # Costruiamo l'etichetta combinata
-        if ha_testo or (not ha_audio and not ha_video):
-            tipi.append("📄 Testo")
-        if ha_audio:
-            tipi.append("🔊 Audio")
-        if ha_video:
-            tipi.append("📺 Video")
-            
-        if not tipi:
-            tipi.append("📄 Testo")
-            
-        return True, " + ".join(tipi)
+        return True, "📄 Testo"
     except: 
         return False, ""
 
@@ -161,7 +115,7 @@ def normalizza_liturgia(testo):
 
 def analizza_intervallo(riferimento):
     try:
-        s = riferimento.replace(" ", "").replace("–", "-").replace("—", "-")
+        s = reference = riferimento.replace(" ", "").replace("–", "-").replace("—", "-")
         m = re.search(r'(Mt|Mc|Lc|Gv)(\d+),(\d+)(?:-(?:(\d+),)?(\d+))?', s, re.IGNORECASE)
         if m:
             lib = m.group(1).capitalize()
@@ -200,9 +154,7 @@ def ricerca_collettiva_volto(brani_list, autori_volto, session):
                             if any(n in txt.lower() for n in nomi):
                                 if verifica_tag_volto(u, b, session):
                                     if autore not in risultati: risultati[autore] = []
-                                    tipo_rilevato = analizza_tipo_contents_url(u, session)
-                                    if not tipo_rilevato:
-                                        tipo_rilevato = analizza_tipo_contenuto_url(u, session)
+                                    tipo_rilevato = analizza_tipo_contenuto_url(u, session)
                                     risultati[autore].append({"t": txt, "u": u, "b": b, "tipo": tipo_rilevato})
             except: break
     return risultati
