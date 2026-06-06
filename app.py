@@ -93,9 +93,8 @@ def ispeziona_e_verifica_qumran(url, session):
         ha_video = False
         ha_testo = False
         
-        # Cerchiamo gli elementi span che hanno le classi reali dei bollini di Qumran
-        for span in soup.find_all('span', class_=True):
-            classi = span.get('class', [])
+        for tag in soup.find_all('span', class_=True):
+            classi = tag.get('class', [])
             if 'commento_tipo_video' in classi:
                 ha_video = True
             if 'commento_tipo_audio' in classi:
@@ -104,7 +103,6 @@ def ispeziona_e_verifica_qumran(url, session):
                 ha_testo = True
 
         tipi = []
-        # Combiniamo i risultati trovati
         if ha_testo or (not ha_audio and not ha_video):
             tipi.append("📄 Testo")
         if ha_audio:
@@ -143,8 +141,18 @@ def normalizza_liturgia(testo):
     return t.upper()
 
 def analizza_intervallo(riferimento):
+    """Calcola l'intervallo geometrico pulendo preventivamente le citazioni spezzate con punti (es: 5,2.43-48)."""
     try:
         s = riferimento.replace(" ", "").replace("–", "-").replace("—", "-")
+        
+        # --- CORREZIONE CHIRURGICA PER CITAZIONI MISTE (MATRIOSKA) ---
+        # Se trova una struttura tipo "5,2.43-48", estrae il capitolo e la stringa dopo il punto ("5,43-48")
+        if "." in s:
+            match_punto = re.search(r'^([A-Za-z]+)(\d+),(\d+)\.(\d+-\d+)', s)
+            if match_punto:
+                libro, cap, _, intervallo_buono = match_punto.groups()
+                s = f"{libro}{cap},{intervallo_buono}"
+        
         m = re.search(r'(Mt|Mc|Lc|Gv)(\d+),(\d+)(?:-(?:(\d+),)?(\d+))?', s, re.IGNORECASE)
         if m:
             lib = m.group(1).capitalize()
