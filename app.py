@@ -15,10 +15,8 @@ st.set_page_config(page_title="Assistente Liturgico", page_icon="📖", layout="
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
-    # Manteniamo il modello che preferisci
     NOME_MODELLO = "gemini-2.5-flash-lite"
     session = requests.Session()
-    # User-Agent fondamentale per bypassare i blocchi di Villapizzone e Barzillai
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
@@ -30,7 +28,6 @@ except Exception as e:
 # --- CSS PER ANDARE A CAPO E UNIFORMARE I BOX SIDEBAR ---
 st.markdown("""
 <style>
-/* Applichiamo il font solo al contenuto vero e proprio */
 .stMarkdown p, .stMarkdown li, code, pre, .stText {
     white-space: pre-wrap !important;
     word-break: break-word !important;
@@ -39,18 +36,16 @@ st.markdown("""
     font-family: 'Inconsolata', 'Tahoma', 'Times New Roman', serif !important;
 }
 
-/* Nasconde le etichette tecniche che appaiono al posto delle icone */
 [data-testid="stSidebarNav"] span, button span p {
     font-family: inherit !important;
 }
 
-/* Uniforma i box del database nella sidebar: stessa grandezza e testo a sinistra */
 div[data-testid="stSidebar"] .stButton > button, 
 div[data-testid="stSidebar"] .stLinkButton > a {
     width: 100% !important;
     display: flex !important;
     align-items: center !important;
-    justify-content: flex-start !important; /* Allineamento a sinistra */
+    justify-content: flex-start !important;
     gap: 12px !important;
     padding-left: 20px !important;
     min-height: 48px !important;
@@ -58,7 +53,6 @@ div[data-testid="stSidebar"] .stLinkButton > a {
     border-radius: 8px !important;
 }
 
-/* Rimuove i margini extra dei blocchi di codice */
 code, pre {
     padding: 0 !important;
     background-color: transparent !important;
@@ -66,7 +60,25 @@ code, pre {
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNZIONI LOGICHE ---
+# --- 3. FUNZIONI LOGICHE DI ISPEZIONE CONTENUTI ---
+def analizza_tipo_contenuto_url(url, session):
+    """Ispeziona la pagina di destinazione per rilevare la presenza di Audio o Video."""
+    tipi = ["📄 Testo"]
+    try:
+        res = session.get(url, timeout=5)
+        html_low = res.text.lower()
+        
+        # Rilevamento Video (Youtube, tag video o player vimeo)
+        if "youtube.com/embed/" in html_low or "youtu.be/" in html_low or "<video" in html_low or "vimeo.com" in html_low:
+            tipi.append("📺 Video")
+            
+        # Rilevamento Audio (file mp3 linkati o tag audio)
+        if ".mp3" in html_low or "<audio" in html_low or "soundcloud.com" in html_low:
+            tipi.append("🔊 Audio")
+    except:
+        pass
+    return " + ".join(tipi)
+
 def normalizza_liturgia(testo):
     t = testo.lower().strip()
     mappa = {
@@ -107,11 +119,23 @@ def sono_sovrapposti(r1, r2):
     if not r1 or not r2 or r1[0] != r2[0]: return False
     return r1[1] <= r2[2] and r2[1] <= r1[2]
 
-def verifica_qumran(url, session):
+def ispeziona_e_verifica_qumran(url, session):
+    """Verifica Qumran ed estrae i tipi di file contenuti nella pagina."""
     try:
         res = session.get(url, timeout=7)
-        return not any(x in res.text for x in ["Nessun commento", "Nessun risultato", "0 documenti trovati"])
-    except: return False
+        if any(x in res.text for x in ["Nessun commento", "Nessun risultato", "0 documenti trovati"]):
+            return False, ""
+        
+        # Ispezione tipi su Qumran
+        tipi = ["📄 Testo"]
+        html_low = res.text.lower()
+        if ".mp3" in html_low or "audio" in html_low:
+            tipi.append("🔊 Audio")
+        if "video" in html_low or "youtube" in html_low:
+            tipi.append("📺 Video")
+        return True, " + ".join(tipi)
+    except: 
+        return False, ""
 
 def verifica_tag_volto(url, brano, session):
     try:
@@ -137,7 +161,9 @@ def ricerca_collettiva_volto(brani_list, autori_volto, session):
                             if any(n in txt.lower() for n in nomi):
                                 if verifica_tag_volto(u, b, session):
                                     if autore not in risultati: risultati[autore] = []
-                                    risultati[autore].append({"t": txt, "u": u, "b": b})
+                                    # Ispezione dinamica della pagina finale de IlVolto
+                                    tipo_rilevato = analizza_tipo_contenuto_url(u, session)
+                                    risultati[autore].append({"t": txt, "u": u, "b": b, "tipo": tipo_rilevato})
             except: break
     return risultati
 
@@ -163,7 +189,6 @@ def cerca_barzillai_chirurgico(brani_list, session, ref_originale, max_pagine=60
                 blocchi = re.split(r'Data:', str(soup), flags=re.IGNORECASE)
                 for blocco in blocchi:
                     if regex_b.search(blocco):
-                        # Controllo se il blocco contiene effettivamente i versetti richiesti
                         ref_trovato = analizza_intervallo(blocco)
                         if ref_trovato and not sono_sovrapposti(ref_originale, ref_trovato):
                             continue
@@ -180,7 +205,6 @@ def cerca_barzillai_chirurgico(brani_list, session, ref_originale, max_pagine=60
     return validi
 
 def cerca_villapizzone(brani_list, session, ref_originale):
-    """Versione sbloccata con filtro chirurgico sui versetti richiesti."""
     validi = []
     url_van = "https://www.gesuiti-villapizzone.it/sito/van.html"
     try:
@@ -197,7 +221,6 @@ def cerca_villapizzone(brani_list, session, ref_originale):
             if any(lib in testo for lib in ["Mt", "Mc", "Lc", "Gv"]):
                 ref_trovato = analizza_intervallo(testo)
                 if ref_trovato:
-                    # Filtro chirurgico: il risultato deve sovrapporsi alla richiesta originale dell'utente
                     if not sono_sovrapposti(ref_originale, ref_trovato):
                         continue
                         
@@ -247,7 +270,6 @@ btn_oggi = col2.button("📅 Oggi")
 
 with st.sidebar:
     st.divider()
-    # Tasto Aggiorna Database
     if st.button("🔄 Aggiorna Database"):
         with st.spinner("Scaricando nuova versione..."):
             r = requests.get(url_db, allow_redirects=True)
@@ -255,7 +277,6 @@ with st.sidebar:
             st.success("Database aggiornato!")
             st.rerun()
     
-    # Tasto Consulta Database
     url_anteprima = url_db.replace("dl=1", "dl=0")
     st.link_button("📂 Consulta Database", url_anteprima)
 
@@ -263,7 +284,7 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
     if "vai_alla_ricerca" in st.session_state:
         del st.session_state["vai_alla_ricerca"]
 
-    with st.spinner("Analisi in corso..."):
+    with st.spinner("Analisi e ispezione link in corso..."):
         if not os.path.exists(nome_file):
             r = requests.get(url_db, allow_redirects=True)
             with open(nome_file, 'wb') as f: f.write(r.content)
@@ -334,7 +355,7 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
             
             with t1:
                 st.markdown("### Testo del Vangelo")
-                p_bib = f"Trascrivi INTEGRALMENTE il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE OBBLIGATORIE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. NON aggiungere commenti, introduzioni o conclusioni."
+                p_bib = f"Trascrivi INTEGRALMENTE il testo sacro della Bibbia per la citazione: {brano_id}. REGOLE: 1. Usa SOLO il testo di {brano_id}. 2. Vai a capo dopo ogni versetto. 3. NON aggiungere commenti, introduzioni o conclusioni."
                 try:
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
                     if risposta and hasattr(risposta, 'text') and risposta.text:
@@ -359,13 +380,16 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
                     if autore in AUTORI_QUMRAN:
                         for b in brani_c:
                             u_q = f"https://www.qumran2.net/parolenuove/commenti.php?criteri=1&autore={AUTORI_QUMRAN[autore]}&parole={urllib.parse.quote_plus(b.replace('–','-'))}"
-                            if verifica_qumran(u_q, session): res_q.append({"b": b, "u": u_q})
+                            attivo, tipo_q = ispeziona_e_verifica_qumran(u_q, session)
+                            if attivo: 
+                                res_q.append({"b": b, "u": u_q, "tipo": tipo_q})
                     res_v = mappa_volto.get(autore, [])
                     if res_q or res_v:
                         trovato_a = True
                         with st.expander(f"👤 {autore}", expanded=True):
-                            for r in res_q: st.write(f"✅ Qumran ({r['b']}): [Link]({r['u']})")
-                            for r in res_v: st.write(f"✅ IlVolto ({r['b']}): [{r['t']}]({r['u']})")
+                            # Mostriamo i bollini rilevati dinamicamente per Qumran e IlVolto
+                            for r in res_q: st.write(f"✅ Qumran ({r['b']}) — **[{r['tipo']}]**: [Link]({r['u']})")
+                            for r in res_v: st.write(f"✅ IlVolto ({r['b']}) — **[{r['tipo']}]**: [{r['t']}]({r['u']})")
                 
                 if not trovato_a: st.info("Nessun commento trovato.")
                 
