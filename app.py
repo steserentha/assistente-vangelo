@@ -65,18 +65,15 @@ def analizza_tipo_contenuto_url(url, session):
     """Ispeziona la pagina di destinazione per rilevare la presenza di Audio o Video (IlVolto / Nella Parola)."""
     tipi = ["📄 Testo"]
     try:
-        # Se è un link di nellaparola, evitiamo la richiesta HTTP pesante poiché usa hashtag dinamici
         if "nellaparola.it" in url:
             return "📄 Testo"
             
         res = session.get(url, timeout=5)
         html_low = res.text.lower()
         
-        # Cerca video incorporati o player
         if "youtube.com/embed/" in html_low or "youtu.be/" in html_low or "<video" in html_low or "vimeo.com" in html_low:
             tipi.append("📺 Video")
             
-        # Cerca tracce audio o file mp3 espliciti
         if ".mp3" in html_low or "<audio" in html_low or "soundcloud.com" in html_low:
             tipi.append("🔊 Audio")
     except:
@@ -91,22 +88,16 @@ def ispeziona_e_verifica_qumran(url, session):
             return False, ""
         
         soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # Troviamo tutti i blocchi di testo o tabelle che contengono i risultati effettivi
-        # (Escludiamo i link della barra di navigazione in alto)
         html_corpo = ""
         for blocco in soup.find_all(['p', 'td', 'span']):
-            # Prendiamo solo gli elementi associati ai commenti (evitando le scritte del menu fisso in alto)
             testo_b = blocco.get_text().lower()
             if "vangelo:" in testo_b or "inserito il" in testo_b:
                 html_corpo += str(blocco).lower()
 
-        # Se non abbiamo isolato bene il corpo, usiamo tutto ma pulendo le parole chiave del menu in alto
         if not html_corpo:
             html_corpo = res.text.lower().replace('presentazioni', '').replace('ritagli', '')
 
         tipi = ["📄 Testo"]
-        # Controlliamo se nel corpo dei risultati appaiono riferimenti reali ad audio o video
         if ".mp3" in html_corpo or "commenti audio" in html_corpo or "🔊" in html_corpo:
             tipi.append("🔊 Audio")
         if "commenti video" in html_corpo or "youtube" in html_corpo or "📺" in html_corpo:
@@ -378,8 +369,7 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
                     risposta = client.models.generate_content(model=NOME_MODELLO, contents=p_bib)
                     if risposta and hasattr(risposta, 'text') and risposta.text:
                         testo_finale = risposta.text.replace('**','').strip()
-                        st.markdown(f"```\n{testo_finale}\n
-```")
+                        st.code(testo_finale, language=None)
                     else:
                         st.warning("⚠️ Gemini non ha risposto. Riprova.")
                 except Exception as e:
@@ -418,7 +408,6 @@ if btn_cerca or btn_oggi or (query and not st.session_state.get("is_searching"))
                     b_senza_spazi = b_pulito.replace(" ", "")
                     b_finale = re.sub(r'^([A-Z][a-z]?)(\d)', r'\1 \2', b_senza_spazi)
                     url_np = f"https://nellaparola.it/commenti#s={quote(b_finale)}"
-                    # Integrazione bollini anche per la sezione "Nella Parola"
                     tipo_np = analizza_tipo_contenuto_url(url_np, session)
                     st.markdown(f"👉 **[Commenti su {b_finale}]({url_np})** — **[{tipo_np}]**")
 
